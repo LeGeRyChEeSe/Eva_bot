@@ -166,11 +166,11 @@ class Tasks(commands.Cog):
                             pass
                         else:
                             extend_deadline = deadline + datetime.timedelta(minutes=40)
-                            actual_time = datetime.datetime.now(extend_deadline.tzinfo)
+                            actual_time = functions.getTimeStamp()
 
                             if extend_deadline.timestamp() < actual_time.timestamp():
                                 await message.delete()
-                            elif actual_time.timestamp() - deadline.timestamp() <= datetime.timedelta(seconds=60) and actual_time.timestamp() - deadline.timestamp() > datetime.timedelta(seconds=0):
+                            elif actual_time.timestamp() - deadline.timestamp() <= datetime.timedelta(seconds=60) and actual_time.timestamp() - deadline.timestamp() > 0:
                                 embed = disnake.Embed(title=f"La session de {deadline.time().strftime('%H:%M')} vient de commencer ! Vous ne pouvez plus vous y inscrire.", description=f"La réservation s'autodétruira à la fin de la session {format_dt(extend_deadline, style='R')}.", color=EVA_COLOR, timestamp=functions.getTimeStamp(), delete_after=(extend_deadline.timestamp() - actual_time.timestamp()))
                                 
                                 rows = ActionRow.rows_from_message(message)
@@ -214,9 +214,9 @@ class Tasks(commands.Cog):
                             pass
                         else:
                             alert_deadline = deadline - datetime.timedelta(minutes=40)
-                            actual_time = datetime.datetime.now(alert_deadline.tzinfo)
+                            actual_time = functions.getTimeStamp()
 
-                            if alert_deadline.timestamp() < actual_time.timestamp() and actual_time.timestamp() < deadline and actual_time.timestamp() - alert_deadline.timestamp() <= datetime.timedelta(seconds=60):
+                            if alert_deadline.timestamp() < actual_time.timestamp() and actual_time.timestamp() < deadline and actual_time.timestamp() - alert_deadline.timestamp() <= 60:
                                 embed = disnake.Embed(title=f"La session commence {format_dt(deadline, style='R')} !", color=EVA_COLOR, timestamp=functions.getTimeStamp())
                                 original_embed = message.embeds[0]
 
@@ -305,14 +305,19 @@ class Tasks(commands.Cog):
 
                     messages = await thread.history(limit=1, oldest_first=True).flatten()
                     message = messages[0]
+                    empty = False
                     rows = ActionRow.rows_from_message(message)
+                    
                     for row, component in ActionRow.walk_components(rows):
                         if component.type == disnake.ComponentType.string_select:
                             for option in component.options:
                                 datetime_option = datetime.datetime.strptime(f"{thread.name} {option.label}", "%A %d %B %Y %H:%M")
                                 if datetime_option < datetime.datetime.now(datetime_option.tzinfo):
                                     component.options.remove(option)
-                    await message.edit(components=rows)
+                                    if not component.options:
+                                        empty = True
+
+                    await message.edit(components=rows if not empty else None)
 
             if next_day:
                 threads.sort(key=lambda x: x.created_at)
