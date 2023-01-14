@@ -246,7 +246,7 @@ class Listeners(commands.Cog):
             resa_embed.add_field(name="Nombre de joueurs maximum", value=nb_max, inline=False)
 
             buttons = [
-                Button(style=disnake.ButtonStyle.url, label="Réserver (EVA.GG)", url=f"https://www.eva.gg/fr/calendrier?locationId={city['id']}&gameId={1}&currentDate={day['date']}"),
+                Button(style=disnake.ButtonStyle.url, label="Réserver (EVA.GG)", url=f"https://www.eva.gg/fr/calendrier?locationId={city['id']}&gameId=1&currentDate={day['date']}"),
                 Button(style=disnake.ButtonStyle.success, label="J'ai réservé", custom_id="subscribe_reservation"),
                 Button(style=disnake.ButtonStyle.danger, label="J'ai annulé", custom_id="unsubscribe_reservation")
             ]
