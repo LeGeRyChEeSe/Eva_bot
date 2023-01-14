@@ -77,7 +77,7 @@ def getTimeStamp() -> datetime.datetime:
   """
       Fonction qui retourne le timestamp utilisable pour un :class:`disnake.Embed`
   """
-  return datetime.datetime.now(datetime.timezone.utc)
+  return datetime.datetime.now()
 
 def getLocalization(bot: commands.InteractionBot, key: str, locale: disnake.Locale, **kwargs) -> str:
   """

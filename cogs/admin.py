@@ -4,7 +4,7 @@ from disnake import Localized
 from disnake import SelectOption
 from disnake.ext import commands
 from disnake.ext.commands import errors as commandsErrors
-from disnake.ui import StringSelect, ActionRow
+from disnake.ui import StringSelect, ActionRow, Button
 import utils.functions as functions
 from utils.constants import *
 
@@ -182,8 +182,9 @@ class Admin(commands.Cog):
                         }), description=f"{day['startTime']} ➡️ {day['endTime']}"))
 
                     select = StringSelect(placeholder="Choisir un horaire", options=select_options, custom_id="reservation")
+                    button = Button(style=disnake.ButtonStyle.url, label="Réserver sur EVA.GG", url=f"https://www.eva.gg/fr/calendrier?locationId={calendar['location']['id']}&gameId=1&currentDate={v.strftime('%Y-%m-%d')}")
 
-                    await resa_channel.create_thread(name=f"{v.strftime('%A %d %B %Y')}", applied_tags=[tag], embed=forum_embed, components=select)
+                    await resa_channel.create_thread(name=f"{v.strftime('%A %d %B %Y')}", applied_tags=[tag], embed=forum_embed, components=[button, select])
 
             embed.description += "+ Ajout des espaces de réservations par jour dans le salon pour les réservations\n\n"
         
@@ -364,89 +365,8 @@ class Admin(commands.Cog):
 
         await inter.response.send_message(embed=embed, ephemeral=True)
 
-    @config.sub_command_group(name="roles")
-    async def roles(self, inter: disnake.ApplicationCommandInteraction):
-        """
-            Configuration de la liste des rôles accessibles pour les réservations.
-        """
-        pass
-
-    @roles.sub_command(name="add")
-    async def add(self, inter: disnake.ApplicationCommandInteraction, role: disnake.Role):
-        """
-            Ajout d'un rôle à la liste des rôles pour les réservations sur ce serveur.
-
-            Parameters
-            ----------
-            role: :class:`disnake.Role`
-                Rôle à ajouter à la liste sur ce serveur.
-        """
-        await inter.response.defer(with_message=True, ephemeral=True)
-        async with self.bot.pool.acquire() as con:
-            roles = await con.fetch("""
-            SELECT role_id
-            FROM resa_roles
-            WHERE resa_roles.guild_id = $1
-            """, inter.guild.id)
-
-            if roles:
-                for record in roles:
-                    if role.id == record["role_id"]:
-                        await inter.followup.send("Ce rôle est déjà présent dans la liste !", ephemeral=True)
-                        return
-
-            await con.execute("""
-            INSERT INTO resa_roles(guild_id, role_id)
-            VALUES($1, $2)
-            """, inter.guild_id, role.id)
-        
-        await self.bot.get_cog("Tasks").set_variables()
-        await inter.followup.send("Le rôle a bien été ajouté à la liste !", ephemeral=True)
-
-    @roles.sub_command(name="delete")
-    async def delete(self, inter: disnake.ApplicationCommandInteraction, role: disnake.Role):
-        """
-            Suppression d'un rôle à la liste des rôles pour les réservations sur ce serveur.
-
-            Parameters
-            ----------
-            role: :class:`disnake.Role`
-                Rôle à supprimer de la liste des rôles sur ce serveur.
-        """
-        await inter.response.defer(with_message=True, ephemeral=True)
-        async with self.bot.pool.acquire() as con:
-            done = await con.execute("""
-            DELETE
-            FROM resa_roles
-            WHERE resa_roles.role_id = $1
-            """, role.id)
-
-        if done == "DELETE 1":
-            await self.bot.get_cog("Tasks").set_variables()
-            await inter.followup.send("Le rôle a bien été supprimé de la liste !", ephemeral=True)
-        elif done == "DELETE 0":
-            await inter.followup.send("Le rôle n'est pas présent dans la liste !", ephemeral=True)
-    
-    @roles.sub_command(name="list")
-    async def list(self, inter: disnake.ApplicationCommandInteraction):
-        """
-            Liste des rôles pour les réservations sur ce serveur.
-        """
-        async with self.bot.pool.acquire() as con:
-            roles = await con.fetch("""
-            SELECT role_id
-            FROM resa_roles
-            WHERE resa_roles.guild_id = $1
-            """, inter.guild_id)
-
-            if roles:
-                embed = disnake.Embed(title="Liste des rôles", color=EVA_COLOR, timestamp=functions.getTimeStamp())
-                embed.description = "\n".join([inter.guild.get_role(role["role_id"]).mention for role in roles])
-                await inter.response.send_message(embed=embed, ephemeral=True)
-            else:
-                await inter.response.send_message("Aucun rôle n'est présent dans la liste !", ephemeral=True)
-
     @commands.slash_command(name="fix", guild_ids=[748856777105211423])
+    @commands.default_member_permissions(administrator=True)
     @commands.check(lambda x: x.author.id == ADMIN_USER)
     async def fix(self, inter: disnake.ApplicationCommandInteraction, resa_threads: bool = False, resa_topic: bool = False, message_select_id: str = None, horaire: str = None, setup_city_name: str = None, forum_resa_id: str = None):
         await inter.response.defer(with_message=True, ephemeral=True)

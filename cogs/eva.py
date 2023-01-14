@@ -189,7 +189,7 @@ class Eva(commands.Cog):
     @commands.dm_only()
     async def link(self, inter: disnake.ApplicationCommandInteraction, username: str = None, twitch_username: str = None):
         """
-        !! Important !! Associer son compte Eva à son compte Discord/Twitch. {{LINK}}
+        __**⚠️ Important ⚠️**__ Associer son compte Eva à son compte Discord/Twitch. {{LINK}}
 
         Parameters
         ----------

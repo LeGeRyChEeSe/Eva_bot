@@ -1,5 +1,6 @@
 import json
 import disnake
+import re
 from disnake import SelectOption, errors
 from disnake.ext import commands, tasks
 from disnake.ui import ActionRow, Button, Select
@@ -156,29 +157,37 @@ class Tasks(commands.Cog):
 
             for thread in resa_channel.threads:
                 try:
-                    async for message in thread.history(oldest_first=True):
-                        if (message.embeds and not message.embeds[0].fields) or not message.embeds:
+                    async for message in thread.history(oldest_first=False, limit=None):
+                        if not message.embeds or message.author != self.bot.user:
                             continue
-
+                        elif message.embeds[0].description.startswith("La réservation s'autodétruira à la fin de la session"):
+                            try:
+                                deadline = datetime.datetime.fromtimestamp(int(re.search("[0-9]+", message.embeds[0].description).group()))
+                            except ValueError:
+                                pass
+                            else:
+                                actual_time = functions.getTimeStamp()
+                                if deadline < actual_time:
+                                    await message.delete()
                         try:
-                            deadline = datetime.datetime.fromtimestamp(int(message.embeds[0].fields[1].value.split("| ")[1].replace("<t:", "").replace(":R>", "")))
+                            deadline = datetime.datetime.fromtimestamp(int(re.search("[0-9]+", message.embeds[0].fields[1].value).group()))
                         except ValueError:
                             pass
                         else:
                             extend_deadline = deadline + datetime.timedelta(minutes=40)
-                            actual_time = datetime.datetime.now(extend_deadline.tzinfo)
+                            actual_time = functions.getTimeStamp()
 
-                            if extend_deadline.timestamp() < actual_time.timestamp():
+                            if extend_deadline < actual_time:
                                 await message.delete()
-                            elif actual_time.timestamp() - deadline.timestamp() <= datetime.timedelta(seconds=60) and actual_time.timestamp() - deadline.timestamp() > datetime.timedelta(seconds=0):
-                                embed = disnake.Embed(title=f"La session de {deadline.time().strftime('%H:%M')} vient de commencer ! Vous ne pouvez plus vous y inscrire.", description=f"La réservation s'autodétruira à la fin de la session {format_dt(extend_deadline, style='R')}.", color=EVA_COLOR, timestamp=functions.getTimeStamp(), delete_after=(extend_deadline.timestamp() - actual_time.timestamp()))
+                            elif actual_time.timestamp() - deadline.timestamp() <= 60 and actual_time.timestamp() - deadline.timestamp() > 0:
+                                embed = disnake.Embed(title=f"La session de {deadline.time().strftime('%H:%M')} vient de commencer ! Vous ne pouvez plus vous y inscrire.", description=f"La réservation s'autodétruira à la fin de la session {format_dt(extend_deadline, style='R')}.", color=EVA_COLOR, timestamp=functions.getTimeStamp())
                                 
                                 rows = ActionRow.rows_from_message(message)
                                 for _, component in ActionRow.walk_components(rows):
                                     component.disabled = True
                                 
                                 await thread.send(embed=embed)
-                                await message.edit(components=rows)
+                                await message.edit(components=rows, delete_after=(extend_deadline.timestamp() - actual_time.timestamp()))
                 except:
                     continue
 
@@ -209,14 +218,14 @@ class Tasks(commands.Cog):
                             players_list = ", ".join(players_list)
 
                         try:
-                            deadline = datetime.datetime.fromtimestamp(int(message.embeds[0].fields[1].value.split("| ")[1].replace("<t:", "").replace(":R>", "")))
+                            deadline = datetime.datetime.fromtimestamp(int(re.search("[0-9]+", message.embeds[0].fields[1].value).group()))
                         except ValueError:
                             pass
                         else:
                             alert_deadline = deadline - datetime.timedelta(minutes=40)
-                            actual_time = datetime.datetime.now(alert_deadline.tzinfo)
+                            actual_time = functions.getTimeStamp()
 
-                            if alert_deadline.timestamp() < actual_time.timestamp() and actual_time.timestamp() < deadline and actual_time.timestamp() - alert_deadline.timestamp() <= datetime.timedelta(seconds=60):
+                            if alert_deadline < actual_time and actual_time < deadline and actual_time.timestamp() - alert_deadline.timestamp() <= 60:
                                 embed = disnake.Embed(title=f"La session commence {format_dt(deadline, style='R')} !", color=EVA_COLOR, timestamp=functions.getTimeStamp())
                                 original_embed = message.embeds[0]
 
@@ -291,8 +300,9 @@ class Tasks(commands.Cog):
                                 }), description=f"{day['startTime']} ➡️ {day['endTime']}"))
 
                             select = Select(placeholder="Choisir un horaire", options=select_options, custom_id="reservation")
+                            button = Button(style=disnake.ButtonStyle.url, label="Réserver sur EVA.GG", url=f"https://www.eva.gg/fr/calendrier?locationId={city['id']}&gameId=1&currentDate={v.strftime('%Y-%m-%d')}")
                             
-                            await resa_channel.create_thread(name=f"{v.strftime('%A %d %B %Y')}", applied_tags=[tag], embed=forum_embed, components=select)
+                            await resa_channel.create_thread(name=f"{v.strftime('%A %d %B %Y')}", applied_tags=[tag], embed=forum_embed, components=[button, select])
                             next_day = True
                             await thread.delete()
                             break
@@ -305,14 +315,19 @@ class Tasks(commands.Cog):
 
                     messages = await thread.history(limit=1, oldest_first=True).flatten()
                     message = messages[0]
+                    empty = False
                     rows = ActionRow.rows_from_message(message)
-                    for row, component in ActionRow.walk_components(rows):
+                    
+                    for _, component in ActionRow.walk_components(rows):
                         if component.type == disnake.ComponentType.string_select:
                             for option in component.options:
                                 datetime_option = datetime.datetime.strptime(f"{thread.name} {option.label}", "%A %d %B %Y %H:%M")
                                 if datetime_option < datetime.datetime.now(datetime_option.tzinfo):
                                     component.options.remove(option)
-                    await message.edit(components=rows)
+                                    if not component.options:
+                                        empty = True
+
+                    await message.edit(components=rows if not empty else None)
 
             if next_day:
                 threads.sort(key=lambda x: x.created_at)
@@ -321,11 +336,12 @@ class Tasks(commands.Cog):
                     first_message = history[0]
                     first_message.embeds[0].set_image(file=disnake.File("assets/Images/reservation.gif"))
                     new_thread, _ = await resa_channel.create_thread(name=thread.name, applied_tags=thread.applied_tags, embeds=first_message.embeds, components=ActionRow.rows_from_message(first_message))
+
                     if len(history) > 1:
                         other_messages = history[1:]
                         for message in other_messages:
                             if message.author != self.bot.user:
-                                content = f"**{message.author.display_name}**:\n>>> {message.content}"
+                                content = f"**{message.author.display_name} le {format_dt(message.created_at)}**:\n>>> {message.content}"
                             else:
                                 content = message.content
                             await new_thread.send(content=content, embeds=message.embeds, components=ActionRow.rows_from_message(message))
