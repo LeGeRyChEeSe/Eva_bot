@@ -8,6 +8,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      TOKEN: ${{ secrets.TOKEN }}
+      HOST_DB: ${{ secrets.HOST_DB }}
+      USER_DB: ${{ secrets.USER_DB }}
+      PASSWD_DB: ${{ secrets.PASSWD_DB }}
+      DB: ${{ secrets.DB }}
     steps:
       -
         name: Checkout
@@ -29,10 +35,3 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/evabot:latest
-      -
-        env:
-          TOKEN: ${{ secrets.TOKEN }}
-          HOST_DB: ${{ secrets.HOST_DB }}
-          USER_DB: ${{ secrets.USER_DB }}
-          PASSWD_DB: ${{ secrets.PASSWD_DB }}
-          DB: ${{ secrets.DB }}
