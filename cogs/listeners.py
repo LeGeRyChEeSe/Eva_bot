@@ -1,6 +1,6 @@
-import asyncio
 import copy
 import json
+import logging
 from math import ceil
 from typing import List
 import disnake
@@ -29,7 +29,7 @@ class Listeners(commands.Cog):
             Définis l'action effectuée quand le Bot est en ligne.
         """
         await self.bot.change_presence(activity=disnake.Activity(type=disnake.ActivityType.watching, name="/help"))
-        print(f"{self.bot.user.display_name.title()}#{self.bot.user.discriminator} est prêt.")
+        logging.warning(f"{self.bot.user.display_name.title()}#{self.bot.user.discriminator} est prêt")
     
     @commands.Cog.listener()
     async def on_guild_join(self, guild: disnake.Guild):
@@ -683,7 +683,7 @@ class Listeners(commands.Cog):
             Gère toutes les erreurs non gérées par leurs gestionnaires respectifs.
         """            
         error_formated = "".join(traceback.format_exception(type(error), error, error.__traceback__))
-        print(error_formated)
+        logging.error(error_formated)
         embed = disnake.Embed(color=EVA_COLOR, timestamp=functions.getTimeStamp())
         params = inter.filled_options
         if "player" in params.keys():
@@ -719,7 +719,7 @@ class Listeners(commands.Cog):
         elif isinstance(error, commandsErrors.PrivateMessageOnly):
             return
         elif isinstance(error, commandsErrors.CheckFailure):
-            print(inter.application_command.qualified_name, inter.application_command.has_error_handler())
+            logging.error(inter.application_command.qualified_name, inter.application_command.has_error_handler())
             if inter.application_command.has_error_handler():
                 return
         else:

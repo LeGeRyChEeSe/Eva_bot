@@ -1,5 +1,6 @@
 import json
 import disnake
+import logging
 from disnake import Localized
 from disnake import SelectOption
 from disnake.ext import commands
@@ -46,7 +47,6 @@ class Admin(commands.Cog):
                 Voulez-vous créer un salon dédié aux commandes du bot ?
         """
         if inter.guild.me.guild_permissions.value < int(PERMS_EVABOT):
-            print(inter.guild.me.guild_permissions)
             embed = disnake.Embed(title="Permissions manquantes", color=EVA_COLOR, timestamp=functions.getTimeStamp())
             embed.description = f"Certaines permissions sont manquantes et empêchent le bon fonctionnement de {inter.guild.me.mention}.\nCliquez sur le bouton ci-dessous pour ajouter de nouveau {inter.guild.me.mention} au serveur avec les nouvelles permissions.\n\nRetapez la commande `/setup` pour définir les paramètres du bot automatiquement."
             button = disnake.ui.Button(style=disnake.ButtonStyle.url, label="Ajouter", url=f"https://discord.com/api/oauth2/authorize?client_id=1007056236019204136&permissions={PERMS_EVABOT}&scope=bot%20applications.commands")
@@ -381,7 +381,7 @@ class Admin(commands.Cog):
             message = await channel.fetch_message(int(message_select_id))
             rows = ActionRow.rows_from_message(message)
             for _, component in ActionRow.walk_components(rows):
-                print(component.type == disnake.ComponentType.string_select)
+                logging.warning(component.type == disnake.ComponentType.string_select)
                 if component.type == disnake.ComponentType.string_select:
                     component.add_option(label=horaire)
             await message.edit(components=rows)
