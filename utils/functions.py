@@ -55,7 +55,7 @@ async def setCities():
       eva_cities["cities"].append(city['name'])
   return eva_cities
 
-def getCities(self):
+def getCities(self) -> Dict:
   return self.bot.get_cog("Variables").eva_cities
 
 async def setGuildsResaChannels(pool: asyncpg.Pool):
@@ -67,6 +67,9 @@ async def setGuildsResaChannels(pool: asyncpg.Pool):
   return resa_channels
 
 # Fonctions synchrones
+
+def perfectGrey() -> disnake.Color:
+  return disnake.Color.from_rgb(*PERFECT_GREY)
 
 def getResaChannel(resa_channels: typing.List, guild: disnake.Guild):
   for record in resa_channels:
@@ -119,19 +122,14 @@ def getLocalization(bot: commands.InteractionBot, key: str, locale: disnake.Loca
       
   return text_localized
 
-def getRoomSize(cities: Dict, city_name: str, mode: int, esport: bool = False) -> Tuple[int, bool]:
+def getRoomSize(cities: Dict, city_name: str, mode: int) -> int:
   cities = cities["locations"]["nodes"]
 
   for city in cities:
     if city_name in city["name"]:
       for game in city["details"]["games"]:
         if game["id"] == mode:
-          if esport and game["maxPlayerESport"]:
-            return game["maxPlayerESport"], True
-          elif esport and not game["maxPlayerESport"]:
-            return game["maxPlayer"], False
-          else:
-            return game["maxPlayer"], False
+            return game["maxPlayer"]
 
 def getCityfromDict(cities: Dict, city_name: str = None, city_id: int = None) -> Dict:
   cities = cities["locations"]["nodes"]
@@ -653,9 +651,9 @@ async def getStats(userId: int, seasonId: int) -> Tuple[Dict, Dict]:
       else:
         return player_result, stats_result
 
-async def getSeasonActive() -> int:
+async def getSeasonsList() -> typing.List:
   """
-    Récupérer la saison actuelle.
+    Récupérer la liste des saisons.
 
     N'est pas censée être appelée manuellement.
   """
@@ -666,19 +664,25 @@ async def getSeasonActive() -> int:
 
       query = gql("""
         query {
-          seasonActive {
-            id
-            from
-            to
-            seasonNumber
-            active
+          listSeasons {
+            nodes 
+        {
+          id
+          from
+          to
+          seasonNumber
+          active
+          status
+        }
+
+            itemCount
           }
         }
       """)
 
       result = await session.execute(query)
 
-      return result["seasonActive"]["seasonNumber"]
+      return result["listSeasons"]["nodes"]
 
 async def getProfile(username: str) -> Dict:
   """
@@ -978,6 +982,12 @@ async def getEachDayInTheWeek() -> Dict[int, datetime.datetime]:
     actual_date += datetime.timedelta(days=1)
   return days_with_dates
 
-async def getSeasonsList():
-  active_season = await getSeasonActive()
-  return [season + 1 for season in range(0, active_season)]
+def getCurrentSeason(self) -> Dict:
+  for season in self.bot.get_cog("Variables").seasons_list:
+    if season["active"]:
+      return season
+
+def getCurrentSeasonNumber(self) -> int:
+  for season in self.bot.get_cog("Variables").seasons_list:
+    if season["active"]:
+      return season["seasonNumber"]

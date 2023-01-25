@@ -5,9 +5,10 @@ PERMS_EVABOT = 398291233841
 ADMIN_USER = 440141443877830656
 EVA_COLOR = int("0x7562d9", base=16)
 # EVA_COLOR = int("0xff7825", base=16) # Halloween
+PERFECT_GREY = (47, 49, 54)
 
 COGS_NAMES = {"Admin": "Administrateur", "Mod": "Modérateur", "Eva": "Public", "Help": "Aide"}
-HIDDEN_COMMANDS = ["fix"]
+HIDDEN_COMMANDS = ["fix", "send"]
 
 # Variables de temps
 YEARS = [y for y in range(datetime.datetime.now().year, datetime.datetime.now().year + 24, 1)]

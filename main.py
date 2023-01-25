@@ -1,7 +1,6 @@
 import asyncpg
 import disnake
 from disnake.ext import commands
-from dotenv import load_dotenv
 import locale
 import logging
 import os
@@ -12,10 +11,6 @@ logger.setLevel(logging.DEBUG)
 handler = logging.FileHandler(filename='disnake.log', encoding='utf-8', mode='w')
 handler.setFormatter(logging.Formatter('%(asctime)s:%(levelname)s:%(name)s: %(message)s'))
 logger.addHandler(handler)
-
-load_dotenv()
-
-import utils.functions as functions
 
 # Indiquer la localité, ici la France
 locale.setlocale(locale.LC_ALL, 'fr_FR.UTF-8')

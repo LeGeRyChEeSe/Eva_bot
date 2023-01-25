@@ -230,7 +230,6 @@ class Admin(commands.Cog):
         await inter.edit_original_response(content=None, embeds=embeds)
 
         await self.bot.get_cog("Tasks").set_variables()
-        await self.bot.get_cog("Tasks").set_resa_channels()
 
     @_setup.autocomplete("ville")
     async def ville_autocomplete(self, inter: disnake.ApplicationCommandInteraction, ville: str):
@@ -368,7 +367,7 @@ class Admin(commands.Cog):
     @commands.slash_command(name="fix", guild_ids=[748856777105211423])
     @commands.default_member_permissions(administrator=True)
     @commands.check(lambda x: x.author.id == ADMIN_USER)
-    async def fix(self, inter: disnake.ApplicationCommandInteraction, resa_threads: bool = False, resa_topic: bool = False, message_select_id: str = None, horaire: str = None, setup_city_name: str = None, forum_resa_id: str = None):
+    async def fix(self, inter: disnake.ApplicationCommandInteraction, resa_threads: bool = False, resa_topic: bool = False, message_select_id: str = None, horaire: str = None, setup_city_name: str = None, forum_resa_id: str = None, get_all_channels: str = None):
         await inter.response.defer(with_message=True, ephemeral=True)
 
         async with self.bot.pool.acquire() as con:
@@ -444,6 +443,11 @@ class Admin(commands.Cog):
                 await inter.edit_original_message(f"La salle de **{setup_city_name}** __n'a pas encore ouverte ses portes au public__, vous ne pouvez donc pas choisir cette ville pour configurer le forum des réservations pour le moment.\nMerci pour votre compréhension.")
             return
 
+        elif get_all_channels:
+            guild = self.bot.get_guild(int(get_all_channels))
+            await inter.edit_original_response("\n".join((f"{c.name} : {c.id}" for c in guild.channels)))
+            return
+
         for guild_config in guilds_config:
             try:
                 resa_channel: disnake.ForumChannel = await self.bot.fetch_channel(guild_config["resa_channel_id"])
@@ -496,6 +500,12 @@ class Admin(commands.Cog):
     @fix.autocomplete("setup_city_name")
     async def ville_autocomplete(self, inter: disnake.ApplicationCommandInteraction, ville: str):
         return [c for c in self.bot.get_cog("Variables").eva_cities["cities"] if ville.lower() in c.lower()]
+
+    @commands.slash_command(name="send")
+    @commands.check(lambda x: x.author.id == ADMIN_USER)
+    async def _send(self, inter: disnake.ApplicationCommandInteraction, content: str):
+        await inter.channel.send(content.replace("\\n", "\n"))
+        await inter.response.send_message("Message envoyé!", ephemeral=True)
 
     # Errors
     
