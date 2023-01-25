@@ -129,13 +129,6 @@ dmypy.json
 .pyre/
 
 .vscode
-.python-version
 *.lock
-*.json
-*.graphql
+/*.json
 *.log
-.graphqlrc.yml
-run-bot.sh
-node_modules
-disnake.log
-pillow.py
