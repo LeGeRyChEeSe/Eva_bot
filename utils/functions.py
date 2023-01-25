@@ -447,7 +447,7 @@ def getTransport() -> AIOHTTPTransport:
 
   return transport
 
-async def getLastGame(userId: int, gameId: int = 1) -> Dict:
+async def getLastGame(userId: int, seasonId: int, gameId: int = 1) -> Dict:
   """
     Récupérer les données de la dernière partie d'un joueur.
 
@@ -464,8 +464,8 @@ async def getLastGame(userId: int, gameId: int = 1) -> Dict:
   ) as session:
 
     query = gql("""   
-      query ($userId: Int, $page: PageInput, $mode: [GameModeEnum!]) {
-        gameHistories(userId: $userId, page: $page, mode: $mode) {
+      query ($userId: Int, $page: PageInput, $mode: [GameModeEnum!], $seasonId: Int) {
+        gameHistories(userId: $userId, page: $page, mode: $mode, seasonId: $seasonId) {
           totalCount
           pageInfo {
             current
@@ -504,11 +504,12 @@ async def getLastGame(userId: int, gameId: int = 1) -> Dict:
           }
         }
       }
+
         }
       }
     """)
 
-    params = {"userId": userId, "page": {"page": 1, "itemsLimit": 20}}
+    params = {"userId": userId, "page": {"page": 1, "itemsLimit": 20}, "seasonId": seasonId}
 
     result = await session.execute(query, variable_values=params)
     if result["gameHistories"]["nodes"]:

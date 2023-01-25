@@ -2,6 +2,7 @@ import os
 import disnake
 import re
 import traceback
+import logging
 from gql.transport import exceptions as GQLExceptions
 from disnake import Localized
 from disnake.ui import Button
@@ -159,6 +160,7 @@ class Eva(commands.Cog):
             await inter.response.defer(with_message=True, ephemeral=False)
 
         embed = disnake.Embed(color=EVA_COLOR, timestamp=functions.getTimeStamp())
+        current_season_id = functions.getCurrentSeasonNumber(self)
 
         user = await functions.getPlayerInfos(self.bot, player)
 
@@ -166,7 +168,7 @@ class Eva(commands.Cog):
             embed.set_footer(text=f"{player.display_name}", icon_url=player.display_avatar.url)
             userId = user["player_id"]
 
-            last_game = await functions.getLastGame(userId, position)
+            last_game = await functions.getLastGame(userId, current_season_id, position)
             if last_game:
                 scoreboard_path = functions.getScoreboard(last_game)
                 embed.title = f"{position}e partie la plus récente"
@@ -220,7 +222,7 @@ class Eva(commands.Cog):
             try:
                 player = await functions.getProfile(username.string)
             except BaseException as e:
-                print(e)
+                logging.exception(e)
                 embed.description = functions.getLocalization(self.bot, "LINK_EMBED_DESCRIPTION_3", inter.locale)
                 await inter.response.send_message(embed=embed)
                 return
@@ -240,7 +242,7 @@ class Eva(commands.Cog):
                     """, inter.author.id, player["player"]["userId"], player["player"]["username"], player["player"]["displayName"])
             except BaseException as e:
                 embed.description = functions.getLocalization(self.bot, "LINK_EMBED_DESCRIPTION_4", inter.locale)
-                print(e)
+                logging.exception(e)
             else:
                 embed.description = functions.getLocalization(self.bot, "LINK_EMBED_DESCRIPTION_5", inter.locale)
         
@@ -257,7 +259,7 @@ class Eva(commands.Cog):
                     """, inter.author.id, twitch_username.lower())
             except BaseException as e:
                 embed.description = functions.getLocalization(self.bot, "LINK_EMBED_DESCRIPTION_6", inter.locale)
-                print(e)
+                logging.exception(e)
             else:
                 embed.description = functions.getLocalization(self.bot, "LINK_EMBED_DESCRIPTION_5", inter.locale)
         
@@ -274,7 +276,7 @@ class Eva(commands.Cog):
                     """, inter.author.id, player["player"]["userId"], player["player"]["username"], player["player"]["displayName"], twitch_username.lower())
             except BaseException as e:
                 embed.description = functions.getLocalization(self.bot, "LINK_EMBED_DESCRIPTION_7", inter.locale)
-                print(e)
+                logging.exception(e)
             else:
                 embed.description = functions.getLocalization(self.bot, "LINK_EMBED_DESCRIPTION_5", inter.locale)
             
@@ -294,7 +296,7 @@ class Eva(commands.Cog):
             Gestionnaire d'erreur spécifique de la commande :meth:`stats`
         """
         error_formated = "".join(traceback.format_exception(type(error), error, error.__traceback__))
-        print(error_formated)
+        logging.error(error_formated)
         embed = disnake.Embed(color=disnake.Color.red(), timestamp=functions.getTimeStamp())
         if isinstance(error, commands.CommandInvokeError):
             if isinstance(error.original, GQLExceptions.TransportQueryError):
