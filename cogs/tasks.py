@@ -12,24 +12,51 @@ import utils.functions as functions
 class Tasks(commands.Cog):
     def __init__(self, bot: commands.InteractionBot) -> None:
         self.bot = bot
-        self.start_tasks.start()
+        self.set_variables.start()
 
+    # Set Variables
+    @tasks.loop(count=1)
+    async def set_variables(self):
+        # Seasons List
+        self.bot.get_cog("Variables").seasons_list = await functions.getSeasonsList()
+
+        # Eva Cities
+        self.bot.get_cog("Variables").eva_cities = await functions.setCities()
+
+        # Resa Channels
+        self.bot.get_cog("Variables").resa_channels = await functions.setGuildsResaChannels(self.bot.pool)
+
+    @set_variables.before_loop
+    async def before_set_variables(self):
+        await self.bot.wait_until_ready()
+    
+    @set_variables.after_loop
+    async def after_set_variables(self):
+        self.set_best_players_ranking.start()
+        self.deadline_resa_channel.start()
+        self.alert_resa.start()
+        self.updateDaysResa.start()
+
+    # Set Best Players Ranking
     @tasks.loop(minutes=15)
     async def set_best_players_ranking(self):
+        current_season_number = functions.getCurrentSeasonNumber(self)
+        current_season = functions.getCurrentSeason(self)
 
         async with self.bot.pool.acquire() as con:
             best_players_ranking_channels_id = await con.fetch('''
-            SELECT best_players_ranking_channel_id, guild_id
+            SELECT best_players_ranking_channel_id, guild_id, city_id
             FROM global_config
             ''')
 
         best_players_ranking_channels = []
+        cities = functions.getCities(self)
         
         for record in best_players_ranking_channels_id:
             if record["best_players_ranking_channel_id"] is not None:
                 try:
                     channel = await self.bot.fetch_channel(record["best_players_ranking_channel_id"])
-                except:
+                except errors.NotFound:
                     async with self.bot.pool.acquire() as con:
                         await con.execute("""
                         UPDATE global_config
@@ -43,29 +70,37 @@ class Tasks(commands.Cog):
             guild = self.bot.get_guild(channel.guild.id)
             edited = False
             more = False
+            buttons = []
+            city_id = [record["city_id"] for record in best_players_ranking_channels_id if record["guild_id"] == guild.id][0]
+            city = functions.getCityfromDict(cities, city_id=city_id)
 
-            if not channel.permissions_for(guild.me).send_messages or not channel.permissions_for(guild.me).embed_links:
+            if not channel.permissions_for(guild.me).send_messages or not channel.permissions_for(guild.me).embed_links or not city:
                 continue
             
             players: typing.List[typing.Dict[typing.Dict, typing.Dict]] = []
 
-            embed = disnake.Embed(title=f"Actualisation {format_dt(functions.getTimeStamp() + datetime.timedelta(minutes=15), style='R')}", color=EVA_COLOR, timestamp=functions.getTimeStamp())
-            embed.set_author(name=f"Classement général des meilleurs joueurs Eva de {guild.name}", icon_url=guild.icon.url if guild.icon else None)
-            embed.description = ""
-            embed.add_field(name="Le classement général est calculé en fonction de tous les classements suivants", value="Nombre de parties jouées\nTemps de jeu\nNombre de victoires\nNombre de défaites\nNombre de parties\nDégats infligés\nTués (K)\nMorts (D)\nAssistances (A)\nRatio Tués/Morts (K/D)\nDistance parcourue\nDistance moyenne parcourue\nMeilleur série d'éliminations\nNiveau", inline=False)
-            embed.add_field(name="Vous ne voyez pas votre pseudo dans le classement ?", value=f"Tapez la commande `/{functions.getLocalization(self.bot, 'LINK_NAME', guild.preferred_locale)}` en message privé à {guild.me.mention} pour associer votre compte Eva à votre compte Discord !\nUne fois l'association terminée patientez le temps indiqué plus haut pour voir votre position dans le classement !\nCliquez sur `Mon classement` si vous ne vous trouvez pas pour afficher votre position !", inline=False)
-            embed.add_field(name="Vous ne voyez toujours pas votre pseudo dans le classement après avoir associé votre compte Eva ?",value=f"Vérifiez bien sur le site [EVA.GG](https://www.eva.gg) que la case __**Profil public**__ est cochée pour que {guild.me.mention} puisse récupérer les infos de votre profil !", inline=False)
+            embed1 = disnake.Embed(title=f"Actualisation {format_dt(functions.getTimeStamp() + datetime.timedelta(minutes=15), style='R')}", color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
+            embed2 = disnake.Embed(title="Le classement est calculé en fonction des statistiques suivantes", color=disnake.Color.dark_gold())
+            embed3 = disnake.Embed(title="Vous ne voyez pas votre pseudo dans le classement ?", color=disnake.Color.dark_red())
+            embed4 = disnake.Embed(title="Vous ne voyez toujours pas votre pseudo dans le classement après avoir associé votre compte Eva ?", color=disnake.Color.dark_red())
+
+            embed1.set_author(name=f"Classement des meilleurs joueurs de EVA {city['name']} (Saison actuelle: {current_season_number})", icon_url=guild.icon.url if guild.icon else None)
+            embed1.description = ""
+            embed2.description = "Nombre de parties jouées\nTemps de jeu\nNombre de victoires\nNombre de défaites\nNombre de parties\nDégats infligés\nTués (K)\nMorts (D)\nAssistances (A)\nRatio Tués/Morts (K/D)\nDistance parcourue\nDistance moyenne parcourue\nMeilleur série d'éliminations\nNiveau"
+            embed3.description = f"Tapez la commande `/{functions.getLocalization(self.bot, 'LINK_NAME', guild.preferred_locale)}` en message privé à {guild.me.mention} pour associer votre compte Eva à votre compte Discord !\nUne fois l'association terminée patientez le temps indiqué plus haut pour voir votre position dans le classement !\nCliquez sur `Mon classement` si vous ne vous trouvez pas pour afficher votre position !"
+            embed4.description = f"Vérifiez bien sur le site [EVA.GG](https://www.eva.gg) que la case __**Profil public**__ est cochée pour que {guild.me.mention} puisse récupérer les infos de votre profil !"
 
             for member in guild.members:
                 user_infos = await functions.getPlayerInfos(self.bot, member)
 
                 if user_infos:
                     try:
-                        player_infos, player_stats = await functions.getStats(user_infos["player_id"], self.bot.get_cog("Variables").seasons_list[-1])
+                        player_infos, player_stats = await functions.getStats(user_infos["player_id"], current_season_number)
                     except:
                         continue
-                    player_infos["player"]["memberId"] = member.id
-                    players.append({"player_infos": player_infos["player"], "player_stats": player_stats["player"]["statistics"]["data"]})
+                    else:
+                        player_infos["player"]["memberId"] = member.id
+                        players.append({"player_infos": player_infos["player"], "player_stats": player_stats["player"]["statistics"]["data"]})
             
             select_options = []
             
@@ -100,7 +135,7 @@ class Tasks(commands.Cog):
 
             for i in range(len(players)):
                 if i == MAX_PLAYERS_SCOREBOARD:
-                    embed.description += "**.**\n**.**\n**Cliquez sur le bouton `Plus` pour afficher le reste du classement.**"
+                    embed1.description += "**.**\n**.**\n**Cliquez sur le bouton `Plus` pour afficher le reste du classement.**"
                     more = True
                     break
 
@@ -118,17 +153,16 @@ class Tasks(commands.Cog):
                         new_number += numbers[int(n)]
                     first_message =  f"{new_number}"
 
-                embed.description += f"{first_message}: {member.mention}\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
+                embed1.description += f"{first_message}: {member.mention}\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
 
             if more:
-                buttons = [
-                    Button(style=disnake.ButtonStyle.blurple, label="Plus", custom_id="more_ranking"),
-                    Button(style=disnake.ButtonStyle.success, label="Mon classement", custom_id="my_rank_ranking")
-                ]
-            else:
-                buttons = [
-                    Button(style=disnake.ButtonStyle.success, label="Mon classement", custom_id="my_rank_ranking")
-                ]
+                buttons.append(Button(style=disnake.ButtonStyle.blurple, label="Plus", custom_id="more_ranking"))
+            
+            buttons.append(Button(style=disnake.ButtonStyle.success, label="Mon classement", custom_id="my_rank_ranking"))
+            buttons.append(Button(style=disnake.ButtonStyle.secondary, label="Classement Mondial", disabled=True))
+            buttons.append(Button(style=disnake.ButtonStyle.url, label="Site EVA.GG", url="https://www.eva.gg/fr/"))
+
+            embeds = [embed1, embed2, embed3, embed4]
 
             async for message in channel.history(limit=5, oldest_first=True):
                 if message.author != guild.me:
@@ -137,13 +171,13 @@ class Tasks(commands.Cog):
                     continue
 
                 if message.embeds[0].title.startswith("Actualisation"):
-                    await message.edit(embed=embed, components=[buttons, select])
+                    await message.edit(embeds=embeds, components=[buttons, select])
                     edited = True
                     break
-            
             if not edited:
-                await channel.send(embed=embed, components=[buttons, select])
+                await channel.send(embeds=embeds, components=[buttons, select])
 
+    # Set Deadline Resa Channels
     @tasks.loop(minutes=1)
     async def deadline_resa_channel(self):
         for record in self.bot.get_cog("Variables").resa_channels:
@@ -191,6 +225,7 @@ class Tasks(commands.Cog):
                 except:
                     continue
 
+    # Set Alert Resa
     @tasks.loop(minutes=1)
     async def alert_resa(self):
         for record in self.bot.get_cog("Variables").resa_channels:
@@ -234,6 +269,7 @@ class Tasks(commands.Cog):
                 except:
                     continue
 
+    # Set Update Days Resa
     @tasks.loop(minutes=1)
     async def updateDaysResa(self):
         """
@@ -341,40 +377,13 @@ class Tasks(commands.Cog):
                         other_messages = history[1:]
                         for message in other_messages:
                             if message.author != self.bot.user:
-                                content = f"**{message.author.display_name} le {format_dt(message.created_at)}**:\n>>> {message.content}"
+                                content = f"**{message.author.display_name} | {format_dt(message.created_at)}**:\n {message.content}"
                             else:
                                 content = message.content
-                            await new_thread.send(content=content, embeds=message.embeds, components=ActionRow.rows_from_message(message))
+                            await new_thread.send(content=content, embeds=message.embeds, files=[await f.to_file() for f in message.attachments], components=ActionRow.rows_from_message(message))
                     await thread.delete()
 
-    @tasks.loop(hours=1)
-    async def set_variables(self):
-        # Seasons List
-        self.bot.get_cog("Variables").seasons_list = await functions.getSeasonsList()
-
-        # Eva Cities
-        self.bot.get_cog("Variables").eva_cities = await functions.setCities()
-
-    @tasks.loop(count=1)
-    async def set_resa_channels(self):
-        self.bot.get_cog("Variables").resa_channels = await functions.setGuildsResaChannels(self.bot.pool)
-    
-    # Les 2 fonctions ci-dessous doivent impérativement rester à la fin de la liste des tâches
-    @tasks.loop(count=1)
-    async def start_tasks(self):
-        self.set_variables.start()
-        self.set_best_players_ranking.start()
-        self.deadline_resa_channel.start()
-        self.alert_resa.start()
-        self.set_resa_channels.start()
-        self.updateDaysResa.start()
-    
-    @start_tasks.before_loop
-    async def before_start_tasks(self):
-        await self.bot.wait_until_ready()
-
     def cog_unload(self) -> None:
-        self.start_tasks.stop()
         self.set_variables.stop()
         self.set_best_players_ranking.stop()
         self.deadline_resa_channel.stop()

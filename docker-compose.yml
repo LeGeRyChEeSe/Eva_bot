@@ -1,0 +1,8 @@
+version: '1.0'
+
+services:
+  evabot:
+    image: evabot:latest
+    command: python main.py
+    working_dir: /evabot
+    env_file: .env

@@ -1,0 +1,13 @@
+.env
+*.log
+Dockerfile
+*.json
+*.sh
+*.lock
+.gitignore
+.vscode
+**/__pycache__
+.python-version
+*.yml
+.git
+.dockerignore

@@ -17,7 +17,7 @@ class Eva(commands.Cog):
         self.bot = bot
 
     @commands.slash_command(name="stats", dm_permission=True)
-    async def stats(self, inter: disnake.ApplicationCommandInteraction, player: disnake.User, saison: int, private: str = commands.Param("No", choices=[Localized("No", key="BOOL_NO"), Localized("Yes", key="BOOL_YES")])):
+    async def stats(self, inter: disnake.ApplicationCommandInteraction, player: disnake.User, saison: str, private: str = commands.Param("No", choices=[Localized("No", key="BOOL_NO"), Localized("Yes", key="BOOL_YES")])):
         """
             Afficher les stats publiques d'un Joueur Eva. {{STATS}}
 
@@ -47,9 +47,10 @@ class Eva(commands.Cog):
         if user:
             userId = user.get("player_id")
 
-            if saison == 0:
+            if saison == "Total":
                 player_profile, stats_player = {}, {}
                 for season in self.bot.get_cog("Variables").seasons_list:
+                    season = season["seasonNumber"]
                     p, s = await functions.getStats(userId, season)
                     if "player" not in stats_player.keys():
                         player_profile = p
@@ -73,6 +74,7 @@ class Eva(commands.Cog):
                         stats_player["player"]["statistics"]["data"]["killsByDeaths"] = stats_player["player"]["statistics"]["data"]["killsByDeaths"] / len(self.bot.get_cog("Variables").seasons_list)
 
             else:
+                saison = int(saison)
                 player_profile, stats_player = await functions.getStats(userId, saison)
             
             player_profile = player_profile["player"]
@@ -84,8 +86,8 @@ class Eva(commands.Cog):
 
             embed.description = functions.getLocalization(self.bot, "STATS_EMBED_DESCRIPTION_LEVEL", inter.locale, level=player_profile['experience']['level'], experience=player_profile['experience']['experience'], experienceForNextLevel=player_profile['experience']['experienceForNextLevel'])
             embed.url = f"https://www.eva.gg/profile/public/{player_profile['username']}/"
-            if saison == 0:
-                embed.set_author(name=f"Saisons {' + '.join([str(i) for i in self.bot.get_cog('Variables').seasons_list])}", url="https://www.eva.gg/profile/season/")
+            if saison == "Total":
+                embed.set_author(name=f"Saisons {' + '.join([str(i['seasonNumber']) for i in self.bot.get_cog('Variables').seasons_list])}", url="https://www.eva.gg/profile/season/")
             else:
                 embed.set_author(name=functions.getLocalization(self.bot, "STATS_EMBED_SEASON", inter.locale, season=saison), url="https://www.eva.gg/profile/season/")
             embed.set_thumbnail(url=player.display_avatar.url)
@@ -126,9 +128,9 @@ class Eva(commands.Cog):
         await inter.followup.send(embed=embed)
 
     @stats.autocomplete("saison")
-    async def saison_autocomplete(self, inter: disnake.ApplicationCommandInteraction, saison: int):
-        seasons_list =  deepcopy(self.bot.get_cog("Variables").seasons_list)
-        seasons_list.append(0)
+    async def saison_autocomplete(self, inter: disnake.ApplicationCommandInteraction, saison: str):
+        seasons_list = [str(season["seasonNumber"]) for season in self.bot.get_cog("Variables").seasons_list]
+        seasons_list.append("Total")
         return seasons_list
 
     @commands.slash_command(name="lastgame", dm_permission=True)
@@ -280,7 +282,7 @@ class Eva(commands.Cog):
 
     @commands.user_command(name="stats")
     async def stats_user(self, inter: disnake.ApplicationCommandInteraction, member: disnake.User):
-        await self.stats(inter, player=member, saison=self.bot.get_cog("Variables").seasons_list[-1], private = "Yes")
+        await self.stats(inter, player=member, saison=functions.getCurrentSeasonNumber(self), private = "Yes")
 
     @commands.user_command(name="lastgame")
     async def lastgame_user(self, inter: disnake.ApplicationCommandInteraction, member: disnake.User):

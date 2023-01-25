@@ -141,12 +141,13 @@ class Listeners(commands.Cog):
             except KeyError:
                 return
 
+            city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
             pages = ceil(len(players)/MAX_PLAYERS_SCOREBOARD)
             selections = inter.values
             buttons = None
             reverse = True
 
-            embed = disnake.Embed(title=f"Classement par {STATS.get(selections[0])} des meilleurs joueurs Eva de {inter.guild.name}", color=EVA_COLOR, timestamp=functions.getTimeStamp())
+            embed = disnake.Embed(title=f"Classement par {STATS.get(selections[0])} des meilleurs joueurs de EVA {city}", color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
             embed.set_author(name=inter.guild.name, icon_url=inter.guild.icon.url if inter.guild.icon else None)
             embed.set_footer(text=f"Page 1/{pages}")
             embed.description = ""
@@ -202,47 +203,18 @@ class Listeners(commands.Cog):
             await inter.followup.send(embed=embed, components=[buttons, bottom_button])
 
         elif custom_id == "reservation":
-            tmp_embed = disnake.Embed(title=f"Voulez-vous réserver la session en E-SPORT?", description="8 Joueurs Maximum", color=disnake.Color.red())
+            await inter.delete_original_response()
             day = json.loads(inter.values[0])
-            esport = False
-
-            buttons = [
-                Button(style=disnake.ButtonStyle.success, label="Oui", custom_id="reservation_esport_yes"),
-                Button(style=disnake.ButtonStyle.danger, label="Non", custom_id="reservation_esport_no")
-            ]
-
-            await inter.edit_original_message(embed=tmp_embed, components=buttons)
-
-            try:
-                button_clicked = await self.bot.wait_for("button_click", check=self.check_author(inter), timeout=60.0)
-            except asyncio.TimeoutError:
-                await inter.delete_original_message()
-                return
-            else:
-                if button_clicked.data.custom_id == "reservation_esport_yes":
-                    esport = True
-                elif button_clicked.data.custom_id == "reservation_esport_no":
-                    esport = False
-                await inter.delete_original_message()
-
             cities = await functions.setCities()
             city = functions.getCityfromDict(cities, city_id=day["loc"])
 
-            nb_max, is_esport = functions.getRoomSize(cities, city["name"], 1, esport=esport)
+            nb_max = functions.getRoomSize(cities, city["name"], 1)
             date = datetime.datetime.strptime(day['date']+ ' ' + day['start'], '%Y-%m-%d %H:%M')
-
-            if esport and is_esport:
-                esport = "```diff\n+Activé\n```"
-            elif esport and not is_esport:
-                esport = "```diff\n-Désactivé. (Le mode Esport n'existe pas dans ce mode de jeu de cette salle !)\n```"
-            else:
-                esport = "```diff\n-Désactivé\n```"
             
-            resa_embed = disnake.Embed(title=f"Réservation à {day['start']}", color=disnake.Color.from_rgb(47, 49, 54))
+            resa_embed = disnake.Embed(title=f"Réservation à {day['start']}", color=functions.perfectGrey())
             resa_embed.description = f"__**Liste des joueurs**__:\n{inter.author.mention}"
             resa_embed.add_field(name="Ville", value=city["name"], inline=False)
             resa_embed.add_field(name="Horaire choisi", value=f"{format_dt(date)} | {format_dt(date, style='R')}", inline=False)
-            resa_embed.add_field(name="E-SPORT", value=esport, inline=False)
             resa_embed.add_field(name="Nombre de joueurs maximum", value=nb_max, inline=False)
 
             buttons = [
@@ -281,12 +253,12 @@ class Listeners(commands.Cog):
             if not check_subscribed(players) and check_number_players(players, nb_max):
                 embed.description = f"{embed.description}\n{inter.author.mention}"
                 response_embed.title = ":white_check_mark: Inscription réussie"
+                await inter.message.edit(embed=embed)
             elif not check_number_players(players, nb_max):
                 response_embed.title = ":x: Il n'y a plus de places pour cette session"
             else:
                 response_embed.title = ":x: Vous êtes déjà inscrit"
 
-            await inter.message.edit(embed=embed)
             await inter.followup.send(embed=response_embed)
 
         elif custom_id == "unsubscribe_reservation":
@@ -298,12 +270,16 @@ class Listeners(commands.Cog):
 
             if check:
                 del players[players.index(check)]
-                embed.description = "\n".join(players)
-                response_embed.title = ":white_check_mark: Désinscription réussie"
+                if len(players) <= 1:
+                    response_embed.title = ":white_check_mark: Réservation supprimée car personne n'est inscrit à cette session"
+                    await inter.message.delete()
+                else:     
+                    embed.description = "\n".join(players)
+                    response_embed.title = ":white_check_mark: Désinscription réussie"
+                    await inter.message.edit(embed=embed)
             else:
                 response_embed.title = ":x: Vous n'êtes pas inscrit"
 
-            await inter.message.edit(embed=embed)
             await inter.followup.send(embed=response_embed)
         
         elif custom_id == "more_ranking":
@@ -313,9 +289,10 @@ class Listeners(commands.Cog):
                 return
             else:
                 await inter.response.defer(with_message=True, ephemeral=True)
-
+            
+            city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
             reverse = True
-            embed_title = f"Classement général des meilleurs joueurs Eva de {inter.guild.name}"
+            embed_title = f"Classement des meilleurs joueurs de EVA {city}"
 
             for k, v in STATS.items():
                 if v in inter.message.embeds[0].title:
@@ -325,9 +302,9 @@ class Listeners(commands.Cog):
                         players.sort(key=lambda x: x["player_infos"]["experience"][k] or 0, reverse=reverse)
                     else:
                         players.sort(key=lambda x: x["player_stats"][k] or 0, reverse=reverse)
-                    embed_title = f"Classement par {v} des meilleurs joueurs Eva de {inter.guild.name}"
+                    embed_title = f"Classement par {v} des meilleurs joueurs de EVA {city}"
 
-            embed = disnake.Embed(title=embed_title, color=EVA_COLOR, timestamp=functions.getTimeStamp())
+            embed = disnake.Embed(title=embed_title, color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
             embed.set_author(name=inter.guild.name, icon_url=inter.guild.icon.url if inter.guild.icon else None)
             
             embed.set_footer(text=f"Page 1/{ceil(len(players)/MAX_PLAYERS_SCOREBOARD)}")
@@ -373,9 +350,10 @@ class Listeners(commands.Cog):
             except KeyError:
                 return
 
+            city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
             pages = ceil(len(players)/MAX_PLAYERS_SCOREBOARD)
             reverse = True
-            embed_title = f"Classement général des meilleurs joueurs Eva de {inter.guild.name}"
+            embed_title = f"Classement des meilleurs joueurs de EVA {city}"
             
             for k, v in STATS.items():
                 if v in inter.message.embeds[0].title:
@@ -385,9 +363,9 @@ class Listeners(commands.Cog):
                         players.sort(key=lambda x: x["player_infos"]["experience"][k] or 0, reverse=reverse)
                     else:
                         players.sort(key=lambda x: x["player_stats"][k] or 0, reverse=reverse)
-                    embed_title = f"Classement par {v} des meilleurs joueurs Eva de {inter.guild.name}"
+                    embed_title = f"Classement par {v} des meilleurs joueurs de EVA {city}"
 
-            embed = disnake.Embed(title=embed_title, color=EVA_COLOR, timestamp=functions.getTimeStamp())
+            embed = disnake.Embed(title=embed_title, color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
             embed.set_author(name=inter.guild.name, icon_url=inter.guild.icon.url if inter.guild.icon else None)
             embed.set_footer(text=f"Page 1/{pages}")
             embed.description = ""
@@ -432,11 +410,12 @@ class Listeners(commands.Cog):
             except KeyError:
                 return
                 
+            city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
             pages = ceil(len(players)/MAX_PLAYERS_SCOREBOARD)
             actual_page = int(''.join(filter(str.isdigit, inter.message.embeds[0].footer.text.split("/")[0])))
             previous_page = actual_page - 1
             reverse = True
-            embed_title = f"Classement général des meilleurs joueurs Eva de {inter.guild.name}"
+            embed_title = f"Classement des meilleurs joueurs de EVA {city}"
 
             for k, v in STATS.items():
                 if v in inter.message.embeds[0].title:
@@ -446,9 +425,9 @@ class Listeners(commands.Cog):
                         players.sort(key=lambda x: x["player_infos"]["experience"][k] or 0, reverse=reverse)
                     else:
                         players.sort(key=lambda x: x["player_stats"][k] or 0, reverse=reverse)
-                    embed_title = f"Classement par {v} des meilleurs joueurs Eva de {inter.guild.name}"
+                    embed_title = f"Classement par {v} des meilleurs joueurs de EVA {city}"
 
-            embed = disnake.Embed(title=embed_title, color=EVA_COLOR, timestamp=functions.getTimeStamp())
+            embed = disnake.Embed(title=embed_title, color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
             embed.set_author(name=inter.guild.name, icon_url=inter.guild.icon.url if inter.guild.icon else None)
             embed.set_footer(text=f"Page {previous_page}/{pages}")
             embed.description = ""
@@ -501,11 +480,12 @@ class Listeners(commands.Cog):
             except KeyError:
                 return
 
+            city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
             pages = ceil(len(players)/MAX_PLAYERS_SCOREBOARD)
             actual_page = int(''.join(filter(str.isdigit, inter.message.embeds[0].footer.text.split("/")[0])))
             next_page = actual_page + 1
             reverse = True
-            embed_title = f"Classement général des meilleurs joueurs Eva de {inter.guild.name}"
+            embed_title = f"Classement des meilleurs joueurs de EVA {city}"
 
             for k, v in STATS.items():
                 if v in inter.message.embeds[0].title:
@@ -515,9 +495,9 @@ class Listeners(commands.Cog):
                         players.sort(key=lambda x: x["player_infos"]["experience"][k] or 0, reverse=reverse)
                     else:
                         players.sort(key=lambda x: x["player_stats"][k] or 0, reverse=reverse)
-                    embed_title = f"Classement par {v} des meilleurs joueurs Eva de {inter.guild.name}"
+                    embed_title = f"Classement par {v} des meilleurs joueurs de EVA {city}"
 
-            embed = disnake.Embed(title=embed_title, color=EVA_COLOR, timestamp=functions.getTimeStamp())
+            embed = disnake.Embed(title=embed_title, color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
             embed.set_author(name=inter.guild.name, icon_url=inter.guild.icon.url if inter.guild.icon else None)
             embed.set_footer(text=f"Page {next_page}/{pages}")
             embed.description = ""
@@ -570,9 +550,10 @@ class Listeners(commands.Cog):
             except KeyError:
                 return
 
+            city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
             pages = ceil(len(players)/MAX_PLAYERS_SCOREBOARD)
             reverse = True
-            embed_title = f"Classement général des meilleurs joueurs Eva de {inter.guild.name}"
+            embed_title = f"Classement des meilleurs joueurs de EVA {city}"
 
             for k, v in STATS.items():
                 if v in inter.message.embeds[0].title:
@@ -582,9 +563,9 @@ class Listeners(commands.Cog):
                         players.sort(key=lambda x: x["player_infos"]["experience"][k] or 0, reverse=reverse)
                     else:
                         players.sort(key=lambda x: x["player_stats"][k] or 0, reverse=reverse)
-                    embed_title = f"Classement par {v} des meilleurs joueurs Eva de {inter.guild.name}"
+                    embed_title = f"Classement par {v} des meilleurs joueurs de EVA {city}"
 
-            embed = disnake.Embed(title=embed_title, color=EVA_COLOR, timestamp=functions.getTimeStamp())
+            embed = disnake.Embed(title=embed_title, color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
             embed.set_author(name=inter.guild.name, icon_url=inter.guild.icon.url if inter.guild.icon else None)
             embed.set_footer(text=f"Page {pages}/{pages}")
             embed.description = ""
@@ -653,12 +634,12 @@ class Listeners(commands.Cog):
                 if players[i]["player_infos"]["memberId"] == inter.author.id:
                     if i == 0:
                         if is_general:
-                            embed.description = f"Vous êtes **{i+1}er** dans le classement Général avec un total de {players[i]['rank']} points."
+                            embed.description = f"Vous êtes **{i+1}er** dans le classement avec un total de {players[i]['rank']} points."
                         else:
                             embed.description = f"Vous êtes **{i+1}er** dans le classement par __{style_scoreboarding}__."
                     else:
                         if is_general:
-                            embed.description = f"Vous êtes **{i+1}ème** dans le classement Général avec un total de {players[i]['rank']} points."
+                            embed.description = f"Vous êtes **{i+1}ème** dans le classement avec un total de {players[i]['rank']} points."
                         else:
                             embed.description = f"Vous êtes **{i+1}ème** dans le classement par __{style_scoreboarding}__."
             
