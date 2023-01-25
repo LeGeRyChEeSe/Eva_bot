@@ -224,7 +224,7 @@ class Admin(commands.Cog):
         else:
             embed.description += "```"
 
-        embed.description += f"\n\n:info: Attention si jamais vous supprimez l'un des 3 salons suivants: **evabot_resa**, **evabot_logs** et **evabot_ranking** ; Vous devrez en définir de nouveaux via la commande `/config` suivis du type de salon que vous voulez définir.\n\n\n__**Pour refaire une configuration au propre:**__\n\n:one: - Supprimez tous les salons en lien avec {inter.guild.me.mention}\n:two: - Ajouter de nouveau {inter.guild.me.mention} au serveur via le bouton **Ajouter au serveur** quand vous cliquez sur son profil\n:three: - Retapez la commande `/setup`"
+        embed.description += f"\n\n:warning: Attention si jamais vous supprimez l'un des 3 salons suivants: **evabot_resa**, **evabot_logs** et **evabot_ranking** ; Vous devrez en définir de nouveaux via la commande `/config` suivis du type de salon que vous voulez définir.\n\n\n__**Pour refaire une configuration au propre:**__\n\n:one: - Supprimez tous les salons en lien avec {inter.guild.me.mention}\n:two: - Ajouter de nouveau {inter.guild.me.mention} au serveur via le bouton **Ajouter au serveur** quand vous cliquez sur son profil\n:three: - Retapez la commande `/setup`"
         embeds.append(embed)
 
         await inter.edit_original_response(content=None, embeds=embeds)
