@@ -344,6 +344,9 @@ def setImage(game: Dict, mode: str, map: str):
     base_editable.text((542,rebels_y + 3), "K/D/A", "#e0c89f", font=column_font)
     base_editable.text((742,rebels_y + 3), "SCORE", "#e0c89f", font=column_font)
 
+  if not os.path.exists("assets/Images/tmp/"):
+    os.makedirs("assets/Images/tmp/")
+
   base.save(f"assets/Images/tmp/{tmp_file}")
 
   return base, tmp_file
