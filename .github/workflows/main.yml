@@ -3,7 +3,7 @@ name: ci
 on:
   push:
     branches:
-      - "main"
+      - "dev"
 
 jobs:
   build:
@@ -29,3 +29,10 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/evabot:latest
+      -
+        env:
+          TOKEN: ${{ secrets.TOKEN }}
+          HOST_DB: ${{ secrets.HOST_DB }}
+          USER_DB: ${{ secrets.USER_DB }}
+          PASSWD_DB: ${{ secrets.PASSWD_DB }}
+          DB: ${{ secrets.DB }}
