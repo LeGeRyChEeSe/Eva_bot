@@ -1,6 +1,5 @@
 .env
 *.log
-Dockerfile
 *.json
 *.sh
 *.lock
