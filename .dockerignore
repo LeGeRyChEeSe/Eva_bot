@@ -3,7 +3,6 @@
 *.json
 *.sh
 *.lock
-.gitignore
 .vscode
 **/__pycache__
 .python-version
