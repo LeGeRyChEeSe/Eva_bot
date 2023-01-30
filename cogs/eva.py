@@ -1,17 +1,13 @@
 import os
 import disnake
 import re
-import traceback
 import logging
-from gql.transport import exceptions as GQLExceptions
+from utils.errors import *
 from disnake import Localized
-from disnake.ui import Button
 from disnake.ext import commands
 from disnake.ext.commands import errors as commandsErrors
-from disnake.utils import format_dt
 import utils.functions as functions
 from utils.constants import *
-from copy import deepcopy
 
 class Eva(commands.Cog):
     def __init__(self, bot: commands.InteractionBot) -> None:
@@ -42,11 +38,12 @@ class Eva(commands.Cog):
 
         embed = disnake.Embed(color=EVA_COLOR, timestamp=functions.getTimeStamp())
 
-        user = await functions.getPlayerInfos(self.bot, player)
+        user = await functions.getPlayerInfos(self.bot, player, True)
 
         embed.set_author(name=f"{player.display_name}#{player.discriminator}", icon_url=player.display_avatar.url)
         if user:
             userId = user.get("player_id")
+            await functions.updatePlayerInfos(self.bot.pool, user)
 
             if saison == "Total":
                 player_profile, stats_player = {}, {}
@@ -72,6 +69,7 @@ class Eva(commands.Cog):
                                         stats_player["player"]["statistics"]["data"][n] = max(d, data)
                                     else:
                                         stats_player["player"]["statistics"]["data"][n] = d + data
+                        print(self.bot.get_cog("Variables").seasons_list)
                         stats_player["player"]["statistics"]["data"]["killsByDeaths"] = stats_player["player"]["statistics"]["data"]["killsByDeaths"] / len(self.bot.get_cog("Variables").seasons_list)
 
             else:
@@ -162,7 +160,7 @@ class Eva(commands.Cog):
         embed = disnake.Embed(color=EVA_COLOR, timestamp=functions.getTimeStamp())
         current_season_id = functions.getCurrentSeasonNumber(self)
 
-        user = await functions.getPlayerInfos(self.bot, player)
+        user = await functions.getPlayerInfos(self.bot, player, True)
 
         if user:
             embed.set_footer(text=f"{player.display_name}", icon_url=player.display_avatar.url)
@@ -295,29 +293,29 @@ class Eva(commands.Cog):
         """
             Gestionnaire d'erreur spécifique de la commande :meth:`stats`
         """
-        error_formated = "".join(traceback.format_exception(type(error), error, error.__traceback__))
-        logging.error(error_formated)
-        embed = disnake.Embed(color=disnake.Color.red(), timestamp=functions.getTimeStamp())
-        if isinstance(error, commands.CommandInvokeError):
-            if isinstance(error.original, GQLExceptions.TransportQueryError):
-                embed.description = "La saison indiquée n'est pas bonne !"
-        if embed.description:
-            await inter.response.send_message(embed=embed)
-            return
+        if isinstance(error, commandsErrors.CommandInvokeError):
+            if isinstance(error.original, UserIsPrivate):
+                await functions.send_error(inter, error.original.args[0])
+    
+    @stats_user.error
+    async def stats_user_error(self, inter: disnake.ApplicationCommandInteraction, error: commands.CommandError):
+        await self.stats_error(inter, error)
 
     @lastgame.error
     async def lastgame_error(self, inter: disnake.ApplicationCommandInteraction, error: commands.CommandError):
         """
             Gestionnaire d'erreur spécifique de la commande :meth:`lastgame`
         """
-        embed = disnake.Embed(color=disnake.Color.red(), timestamp=functions.getTimeStamp())
         params = inter.filled_options
         if isinstance(error, commands.CommandInvokeError):
+            if isinstance(error.original, UserIsPrivate):
+                await functions.send_error(inter, error.original.args[0])
             if isinstance(error.original, IndexError):
-                embed.description = f"{params['player'].mention} n'a pas joué {params['position']} parties !"
-        if embed.description:
-            await inter.followup.send(embed=embed)
-            return
+                await functions.send_error(inter, f"{params['player'].mention} n'a pas joué {params['position']} parties !")
+
+    @lastgame_user.error
+    async def lastgame_user_error(self, inter: disnake.ApplicationCommandInteraction, error: commands.CommandError):
+        await self.lastgame_error(inter, error)
 
     @link.error
     async def link_error(self, inter: disnake.ApplicationCommandInteraction, error: commands.CommandError):

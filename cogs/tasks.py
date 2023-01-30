@@ -1,12 +1,14 @@
 import json
 import disnake
 import re
+from gql.transport import exceptions as GQLExceptions
 from disnake import SelectOption, errors
 from disnake.ext import commands, tasks
 from disnake.ui import ActionRow, Button, Select
 from disnake.utils import format_dt
 import typing
 from utils.constants import *
+from utils.errors import *
 import utils.functions as functions
 
 class Tasks(commands.Cog):
@@ -42,6 +44,9 @@ class Tasks(commands.Cog):
     async def set_best_players_ranking(self):
         current_season_number = functions.getCurrentSeasonNumber(self)
         current_season = functions.getCurrentSeason(self)
+        current_season_from = format_dt(datetime.datetime.fromisoformat(current_season['from']))
+        current_season_to = format_dt(datetime.datetime.fromisoformat(current_season['to']))
+        current_season_to_R = format_dt(datetime.datetime.fromisoformat(current_season['to']), "R")
 
         async with self.bot.pool.acquire() as con:
             best_players_ranking_channels_id = await con.fetch('''
@@ -71,6 +76,7 @@ class Tasks(commands.Cog):
             edited = False
             more = False
             buttons = []
+            players_infos = await functions.getAllPlayersInfos(self.bot.pool)
             city_id = [record["city_id"] for record in best_players_ranking_channels_id if record["guild_id"] == guild.id][0]
             city = functions.getCityfromDict(cities, city_id=city_id)
 
@@ -84,30 +90,37 @@ class Tasks(commands.Cog):
             embed3 = disnake.Embed(title="Vous ne voyez pas votre pseudo dans le classement ?", color=disnake.Color.dark_red())
             embed4 = disnake.Embed(title="Vous ne voyez toujours pas votre pseudo dans le classement après avoir associé votre compte Eva ?", color=disnake.Color.dark_red())
 
-            embed1.set_author(name=f"Classement des meilleurs joueurs de EVA {city['name']} (Saison actuelle: {current_season_number})", icon_url=guild.icon.url if guild.icon else None)
+            embed1.set_author(name=f"Classement des meilleurs joueurs de EVA {city['name']} (Saison: {current_season_number})", icon_url=guild.icon.url if guild.icon else None)
+            embed1.add_field(f"Période de la saison {current_season_number}", f"{current_season_from} :arrow_right: {current_season_to} | **Se termine {current_season_to_R}**")
             embed1.description = ""
             embed2.description = "Nombre de parties jouées\nTemps de jeu\nNombre de victoires\nNombre de défaites\nNombre de parties\nDégats infligés\nTués (K)\nMorts (D)\nAssistances (A)\nRatio Tués/Morts (K/D)\nDistance parcourue\nDistance moyenne parcourue\nMeilleur série d'éliminations\nNiveau"
+            embed2.add_field("Comment lire votre score", "Moins vous avez de points et plus vous êtes en tête dans le classement")
             embed3.description = f"Tapez la commande `/{functions.getLocalization(self.bot, 'LINK_NAME', guild.preferred_locale)}` en message privé à {guild.me.mention} pour associer votre compte Eva à votre compte Discord !\nUne fois l'association terminée patientez le temps indiqué plus haut pour voir votre position dans le classement !\nCliquez sur `Mon classement` si vous ne vous trouvez pas pour afficher votre position !"
             embed4.description = f"Vérifiez bien sur le site [EVA.GG](https://www.eva.gg) que la case __**Profil public**__ est cochée pour que {guild.me.mention} puisse récupérer les infos de votre profil !"
 
-            for member in guild.members:
-                user_infos = await functions.getPlayerInfos(self.bot, member)
+            for player_infos in players_infos:
+                member = guild.get_member(player_infos["user_id"])
+                
+                if not member:
+                    continue
 
-                if user_infos:
-                    try:
-                        player_infos, player_stats = await functions.getStats(user_infos["player_id"], current_season_number)
-                    except:
-                        continue
-                    else:
-                        player_infos["player"]["memberId"] = member.id
-                        players.append({"player_infos": player_infos["player"], "player_stats": player_stats["player"]["statistics"]["data"]})
+                try:
+                    player_infos, player_stats = await functions.getStats(player_infos["player_id"], current_season_number)
+                except UserIsPrivate:
+                    continue
+                else:
+                    player_infos["player"]["memberId"] = member.id
+                    players.append({"player_infos": player_infos["player"], "player_stats": player_stats["player"]["statistics"]["data"]})
             
+            if not players:
+                continue
+
             select_options = []
             
             for stat in players[0]["player_stats"].keys():
                 reverse = True
 
-                if stat in ["bestInflictedDamage", "killDeathRatio"]:
+                if stat in ["bestInflictedDamage", "killDeathRatio", "gameDrawCount"]:
                     continue
 
                 elif stat in ["deaths", "gameDefeatCount"]:
@@ -153,14 +166,14 @@ class Tasks(commands.Cog):
                         new_number += numbers[int(n)]
                     first_message =  f"{new_number}"
 
-                embed1.description += f"{first_message}: {member.mention}\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
+                embed1.description += f"{first_message}: {member.mention} | `{players[i]['rank']} Points`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
 
             if more:
                 buttons.append(Button(style=disnake.ButtonStyle.blurple, label="Plus", custom_id="more_ranking"))
             
             buttons.append(Button(style=disnake.ButtonStyle.success, label="Mon classement", custom_id="my_rank_ranking"))
             buttons.append(Button(style=disnake.ButtonStyle.secondary, label="Classement Mondial", disabled=True))
-            buttons.append(Button(style=disnake.ButtonStyle.url, label="Site EVA.GG", url="https://www.eva.gg/fr/"))
+            buttons.append(Button(style=disnake.ButtonStyle.url, label="Site EVA.GG", url=f"https://www.eva.gg/fr/calendrier?locationId={city['id']}"))
 
             embeds = [embed1, embed2, embed3, embed4]
 

@@ -27,4 +27,4 @@ DOM = "DOMINATION"
 TDM = "TDM"
 SKM = "SKIRMISH"
 
-STATS = {'experience': 'Niveau', 'gameCount': 'Nombre de parties jouées', 'gameTime': 'Temps de jeu', 'gameVictoryCount': 'Nombre de victoires', 'gameDefeatCount': 'Nombre de défaites', 'gameDrawCount': 'Nombre de parties', 'inflictedDamage': 'Dégats infligés', 'kills': 'Tués (K)', 'deaths': 'Morts (D)', 'assists': 'Assistances (A)', 'killsByDeaths': 'Ratio Tués/Morts (K/D)', 'traveledDistance': 'Distance parcourue', 'traveledDistanceAverage': 'Distance moyenne parcourue', 'bestKillStreak': "Meilleur série d'éliminations"}
+STATS = {'experience': 'Niveau', 'gameCount': 'Nombre de parties jouées', 'gameTime': 'Temps de jeu', 'gameVictoryCount': 'Nombre de victoires', 'gameDefeatCount': 'Nombre de défaites', 'inflictedDamage': 'Dégats infligés', 'kills': 'Tués (K)', 'deaths': 'Morts (D)', 'assists': 'Assistances (A)', 'killsByDeaths': 'Ratio Tués/Morts (K/D)', 'traveledDistance': 'Distance parcourue', 'traveledDistanceAverage': 'Distance moyenne parcourue', 'bestKillStreak': "Meilleur série d'éliminations"}
