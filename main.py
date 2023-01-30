@@ -18,6 +18,8 @@ os.environ['TZ'] = 'Europe/Paris'
 
 intents = disnake.Intents.all()
 
+#Test
+
 bot = commands.InteractionBot(intents=intents)
 bot.i18n.load("locale/")
 
