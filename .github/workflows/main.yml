@@ -41,7 +41,7 @@ jobs:
         with:
           images: |
             my-docker-hub-namespace/my-docker-hub-repository
-            ghcr.io/garohrl/evabot
+            ghcr.io/evabot
       -
         name: Build and push
         uses: docker/build-push-action@v3
