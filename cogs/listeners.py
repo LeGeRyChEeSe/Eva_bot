@@ -154,8 +154,10 @@ class Listeners(commands.Cog):
 
             if selections[0] in ["deaths", "gameDefeatCount"]:
                 reverse = False
+
             if selections[0] == "experience":
                 players.sort(key=lambda x: x["player_infos"]["experience"][selections[0]] or 0, reverse=reverse)
+
             else:
                 players.sort(key=lambda x: x["player_stats"][selections[0]] or 0, reverse=reverse)
 
@@ -178,10 +180,52 @@ class Listeners(commands.Cog):
                     first_message =  f"{new_number}"
                 
                 if member:
-                    if i + 1 == len(players):
-                        embed.description += f"{first_message}: {member.mention}\n\n"
+                    # Définitions des prefixes et des suffixes
+
+                    content, suffixe, prefixe = "", "", ""
+
+                    if selections[0] == "experience":
+                        content = players[i]['player_infos']['experience']["level"] or 0
+                        prefixe="Niveau "
                     else:
-                        embed.description += f"{first_message}: {member.mention}\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
+                        if selections[0] == "gameCount":
+                            suffixe = " Parties"
+                        elif selections[0] == "gameTime":
+                            suffixe = " Heures"
+                        elif selections[0] == "gameVictoryCount":
+                            suffixe = " Victoires"
+                        elif selections[0] == "gameDefeatCount":
+                            suffixe = " Défaites"
+                        elif selections[0] == "kills":
+                            suffixe = " Tués"
+                        elif selections[0] == "deaths":
+                            suffixe = " Morts"
+                        elif selections[0] == "assists":
+                            suffixe = " Assistances"
+                        elif selections[0] == "killsByDeaths":
+                            suffixe = " K/D"
+                        elif selections[0] == "traveledDistance":
+                            suffixe = " Mètres"
+                        elif selections[0] == "traveledDistanceAverage":
+                            suffixe = " Mètres"
+                        elif selections[0] == "bestKillStreak":
+                            suffixe = " Tués"
+                        elif selections[0] == "inflictedDamage":
+                            suffixe = " Dégats infligés"
+                        
+                        if selections[0] == "gameTime":
+                            content = round(players[i]['player_stats'][selections[0]] / 3600, 1) or 0
+                        elif selections[0] == "killsByDeaths":
+                            content = round(players[i]['player_stats'][selections[0]], 3) or 0
+                        elif selections[0] in ["traveledDistanceAverage", "traveledDistance"]:
+                            content = round(players[i]['player_stats'][selections[0]])
+                        else:
+                            content = players[i]['player_stats'][selections[0]] or 0
+
+                    if i + 1 == len(players):
+                        embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n\n"
+                    else:
+                        embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
             
             if pages == 1:
                 buttons = [
@@ -205,7 +249,7 @@ class Listeners(commands.Cog):
         elif custom_id == "reservation":
             await inter.delete_original_response()
             day = json.loads(inter.values[0])
-            cities = await functions.setCities()
+            cities = functions.getCities(self)
             city = functions.getCityfromDict(cities, city_id=day["loc"])
 
             nb_max = functions.getRoomSize(cities, city["name"], 1)
@@ -283,12 +327,8 @@ class Listeners(commands.Cog):
             await inter.followup.send(embed=response_embed)
         
         elif custom_id == "more_ranking":
-            try:
-                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
-            except KeyError:
-                return
-            else:
-                await inter.response.defer(with_message=True, ephemeral=True)
+            players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
+            await inter.response.defer(with_message=True, ephemeral=True)
             
             city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
             reverse = True
@@ -329,9 +369,9 @@ class Listeners(commands.Cog):
                     first_message =  f"{new_number}"
 
                 if i + 1 == len(players):
-                    embed.description += f"{first_message}: {member.mention}\n\n"
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{players[i]['rank']} Points`\n\n"
                 else:
-                    embed.description += f"{first_message}: {member.mention}\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{players[i]['rank']} Points`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
 
             buttons = [
                 Button(custom_id="begin_ranking", emoji="⏪", disabled=True),
@@ -345,15 +385,12 @@ class Listeners(commands.Cog):
             await inter.followup.send(embed=embed, components=[buttons, bottom_button], ephemeral=True)
 
         elif custom_id == "begin_ranking":
-            try:
-                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
-            except KeyError:
-                return
-
+            players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
             city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
             pages = ceil(len(players)/MAX_PLAYERS_SCOREBOARD)
             reverse = True
             embed_title = f"Classement des meilleurs joueurs de EVA {city}"
+            stat = ""
             
             for k, v in STATS.items():
                 if v in inter.message.embeds[0].title:
@@ -363,6 +400,7 @@ class Listeners(commands.Cog):
                         players.sort(key=lambda x: x["player_infos"]["experience"][k] or 0, reverse=reverse)
                     else:
                         players.sort(key=lambda x: x["player_stats"][k] or 0, reverse=reverse)
+                    stat = k
                     embed_title = f"Classement par {v} des meilleurs joueurs de EVA {city}"
 
             embed = disnake.Embed(title=embed_title, color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
@@ -388,10 +426,56 @@ class Listeners(commands.Cog):
                         new_number += numbers[int(n)]
                     first_message =  f"{new_number}"
 
-                if i + 1 == len(players):
-                    embed.description += f"{first_message}: {member.mention}\n\n"
+                # Définitions des prefixes et des suffixes
+
+                content, suffixe, prefixe = "", "", ""
+
+                if stat == "experience":
+                    content = players[i]['player_infos']['experience']["level"] or 0
+                    prefixe="Niveau "
                 else:
-                    embed.description += f"{first_message}: {member.mention}\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
+                    if stat == "gameCount":
+                        suffixe = " Parties"
+                    elif stat == "gameTime":
+                        suffixe = " Heures"
+                    elif stat == "gameVictoryCount":
+                        suffixe = " Victoires"
+                    elif stat == "gameDefeatCount":
+                        suffixe = " Défaites"
+                    elif stat == "kills":
+                        suffixe = " Tués"
+                    elif stat == "deaths":
+                        suffixe = " Morts"
+                    elif stat == "assists":
+                        suffixe = " Assistances"
+                    elif stat == "killsByDeaths":
+                        suffixe = " K/D"
+                    elif stat == "traveledDistance":
+                        suffixe = " Mètres"
+                    elif stat == "traveledDistanceAverage":
+                        suffixe = " Mètres"
+                    elif stat == "bestKillStreak":
+                        suffixe = " Tués"
+                    elif stat == "inflictedDamage":
+                        suffixe = " Dégats infligés"
+                    
+                    if stat == "gameTime":
+                        content = round(players[i]['player_stats'][stat] / 3600, 1) or 0
+                    elif stat == "killsByDeaths":
+                        content = round(players[i]['player_stats'][stat], 3) or 0
+                    elif stat in ["traveledDistanceAverage", "traveledDistance"]:
+                        content = round(players[i]['player_stats'][stat])
+                    else:
+                        if stat:
+                            content = players[i]['player_stats'][stat] or 0
+                        else:
+                            content = players[i]["rank"] or 0
+                            suffixe = " Points"
+                
+                if i + 1 == len(players):
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n\n"
+                else:
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
 
             buttons = [
                 Button(custom_id="begin_ranking", emoji="⏪", disabled=True),
@@ -405,17 +489,14 @@ class Listeners(commands.Cog):
             await inter.response.edit_message(embed=embed, components=[buttons, bottom_button])
 
         elif custom_id == "previous_ranking":
-            try:
-                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
-            except KeyError:
-                return
-                
+            players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])   
             city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
             pages = ceil(len(players)/MAX_PLAYERS_SCOREBOARD)
             actual_page = int(''.join(filter(str.isdigit, inter.message.embeds[0].footer.text.split("/")[0])))
             previous_page = actual_page - 1
             reverse = True
             embed_title = f"Classement des meilleurs joueurs de EVA {city}"
+            stat = ""
 
             for k, v in STATS.items():
                 if v in inter.message.embeds[0].title:
@@ -425,6 +506,7 @@ class Listeners(commands.Cog):
                         players.sort(key=lambda x: x["player_infos"]["experience"][k] or 0, reverse=reverse)
                     else:
                         players.sort(key=lambda x: x["player_stats"][k] or 0, reverse=reverse)
+                    stat = k
                     embed_title = f"Classement par {v} des meilleurs joueurs de EVA {city}"
 
             embed = disnake.Embed(title=embed_title, color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
@@ -450,10 +532,56 @@ class Listeners(commands.Cog):
                         new_number += numbers[int(n)]
                     first_message =  f"{new_number}"
 
-                if i + 1 == len(players):
-                    embed.description += f"{first_message}: {member.mention}\n\n"
+                # Définitions des prefixes et des suffixes
+
+                content, suffixe, prefixe = "", "", ""
+
+                if stat == "experience":
+                    content = players[i]['player_infos']['experience']["level"] or 0
+                    prefixe="Niveau "
                 else:
-                    embed.description += f"{first_message}: {member.mention}\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
+                    if stat == "gameCount":
+                        suffixe = " Parties"
+                    elif stat == "gameTime":
+                        suffixe = " Heures"
+                    elif stat == "gameVictoryCount":
+                        suffixe = " Victoires"
+                    elif stat == "gameDefeatCount":
+                        suffixe = " Défaites"
+                    elif stat == "kills":
+                        suffixe = " Tués"
+                    elif stat == "deaths":
+                        suffixe = " Morts"
+                    elif stat == "assists":
+                        suffixe = " Assistances"
+                    elif stat == "killsByDeaths":
+                        suffixe = " K/D"
+                    elif stat == "traveledDistance":
+                        suffixe = " Mètres"
+                    elif stat == "traveledDistanceAverage":
+                        suffixe = " Mètres"
+                    elif stat == "bestKillStreak":
+                        suffixe = " Tués"
+                    elif stat == "inflictedDamage":
+                        suffixe = " Dégats infligés"
+                    
+                    if stat == "gameTime":
+                        content = round(players[i]['player_stats'][stat] / 3600, 1) or 0
+                    elif stat == "killsByDeaths":
+                        content = round(players[i]['player_stats'][stat], 3) or 0
+                    elif stat in ["traveledDistanceAverage", "traveledDistance"]:
+                        content = round(players[i]['player_stats'][stat])
+                    else:
+                        if stat:
+                            content = players[i]['player_stats'][stat] or 0
+                        else:
+                            content = players[i]["rank"] or 0
+                            suffixe = " Points"
+
+                if i + 1 == len(players):
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n\n"
+                else:
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
 
             if previous_page == 1:
                 buttons = [
@@ -475,17 +603,14 @@ class Listeners(commands.Cog):
             await inter.response.edit_message(embed=embed, components=[buttons, bottom_button])
 
         elif custom_id == "next_ranking":
-            try:
-                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
-            except KeyError:
-                return
-
+            players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
             city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
             pages = ceil(len(players)/MAX_PLAYERS_SCOREBOARD)
             actual_page = int(''.join(filter(str.isdigit, inter.message.embeds[0].footer.text.split("/")[0])))
             next_page = actual_page + 1
             reverse = True
             embed_title = f"Classement des meilleurs joueurs de EVA {city}"
+            stat = ""
 
             for k, v in STATS.items():
                 if v in inter.message.embeds[0].title:
@@ -495,6 +620,7 @@ class Listeners(commands.Cog):
                         players.sort(key=lambda x: x["player_infos"]["experience"][k] or 0, reverse=reverse)
                     else:
                         players.sort(key=lambda x: x["player_stats"][k] or 0, reverse=reverse)
+                    stat = k
                     embed_title = f"Classement par {v} des meilleurs joueurs de EVA {city}"
 
             embed = disnake.Embed(title=embed_title, color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
@@ -520,10 +646,56 @@ class Listeners(commands.Cog):
                         new_number += numbers[int(n)]
                     first_message =  f"{new_number}"
 
-                if i + 1 == len(players):
-                    embed.description += f"{first_message}: {member.mention}\n\n"
+                # Définitions des prefixes et des suffixes
+
+                content, suffixe, prefixe = "", "", ""
+
+                if stat == "experience":
+                    content = players[i]['player_infos']['experience']["level"] or 0
+                    prefixe="Niveau "
                 else:
-                    embed.description += f"{first_message}: {member.mention}\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
+                    if stat == "gameCount":
+                        suffixe = " Parties"
+                    elif stat == "gameTime":
+                        suffixe = " Heures"
+                    elif stat == "gameVictoryCount":
+                        suffixe = " Victoires"
+                    elif stat == "gameDefeatCount":
+                        suffixe = " Défaites"
+                    elif stat == "kills":
+                        suffixe = " Tués"
+                    elif stat == "deaths":
+                        suffixe = " Morts"
+                    elif stat == "assists":
+                        suffixe = " Assistances"
+                    elif stat == "killsByDeaths":
+                        suffixe = " K/D"
+                    elif stat == "traveledDistance":
+                        suffixe = " Mètres"
+                    elif stat == "traveledDistanceAverage":
+                        suffixe = " Mètres"
+                    elif stat == "bestKillStreak":
+                        suffixe = " Tués"
+                    elif stat == "inflictedDamage":
+                        suffixe = " Dégats infligés"
+                    
+                    if stat == "gameTime":
+                        content = round(players[i]['player_stats'][stat] / 3600, 1) or 0
+                    elif stat == "killsByDeaths":
+                        content = round(players[i]['player_stats'][stat], 3) or 0
+                    elif stat in ["traveledDistanceAverage", "traveledDistance"]:
+                        content = round(players[i]['player_stats'][stat])
+                    else:
+                        if stat:
+                            content = players[i]['player_stats'][stat] or 0
+                        else:
+                            content = players[i]["rank"] or 0
+                            suffixe = " Points"
+
+                if i + 1 == len(players):
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n\n"
+                else:
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
 
             if next_page >= pages:
                 buttons = [
@@ -545,15 +717,12 @@ class Listeners(commands.Cog):
             await inter.response.edit_message(embed=embed, components=[buttons, bottom_button])
 
         elif custom_id == "final_ranking":
-            try:
-                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
-            except KeyError:
-                return
-
+            players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
             city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
             pages = ceil(len(players)/MAX_PLAYERS_SCOREBOARD)
             reverse = True
             embed_title = f"Classement des meilleurs joueurs de EVA {city}"
+            stat = ""
 
             for k, v in STATS.items():
                 if v in inter.message.embeds[0].title:
@@ -563,6 +732,7 @@ class Listeners(commands.Cog):
                         players.sort(key=lambda x: x["player_infos"]["experience"][k] or 0, reverse=reverse)
                     else:
                         players.sort(key=lambda x: x["player_stats"][k] or 0, reverse=reverse)
+                    stat = k
                     embed_title = f"Classement par {v} des meilleurs joueurs de EVA {city}"
 
             embed = disnake.Embed(title=embed_title, color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
@@ -588,10 +758,56 @@ class Listeners(commands.Cog):
                         new_number += numbers[int(n)]
                     first_message =  f"{new_number}"
 
-                if i + 1 == len(players):
-                    embed.description += f"{first_message}: {member.mention}\n\n"
+                # Définitions des prefixes et des suffixes
+
+                content, suffixe, prefixe = "", "", ""
+
+                if stat == "experience":
+                    content = players[i]['player_infos']['experience']["level"] or 0
+                    prefixe="Niveau "
                 else:
-                    embed.description += f"{first_message}: {member.mention}\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
+                    if stat == "gameCount":
+                        suffixe = " Parties"
+                    elif stat == "gameTime":
+                        suffixe = " Heures"
+                    elif stat == "gameVictoryCount":
+                        suffixe = " Victoires"
+                    elif stat == "gameDefeatCount":
+                        suffixe = " Défaites"
+                    elif stat == "kills":
+                        suffixe = " Tués"
+                    elif stat == "deaths":
+                        suffixe = " Morts"
+                    elif stat == "assists":
+                        suffixe = " Assistances"
+                    elif stat == "killsByDeaths":
+                        suffixe = " K/D"
+                    elif stat == "traveledDistance":
+                        suffixe = " Mètres"
+                    elif stat == "traveledDistanceAverage":
+                        suffixe = " Mètres"
+                    elif stat == "bestKillStreak":
+                        suffixe = " Tués"
+                    elif stat == "inflictedDamage":
+                        suffixe = " Dégats infligés"
+                    
+                    if stat == "gameTime":
+                        content = round(players[i]['player_stats'][stat] / 3600, 1) or 0
+                    elif stat == "killsByDeaths":
+                        content = round(players[i]['player_stats'][stat], 3) or 0
+                    elif stat in ["traveledDistanceAverage", "traveledDistance"]:
+                        content = round(players[i]['player_stats'][stat])
+                    else:
+                        if stat:
+                            content = players[i]['player_stats'][stat] or 0
+                        else:
+                            content = players[i]["rank"] or 0
+                            suffixe = " Points"
+
+                if i + 1 == len(players):
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n\n"
+                else:
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
 
             buttons = [
                 Button(custom_id="begin_ranking", emoji="⏪"),
@@ -604,16 +820,12 @@ class Listeners(commands.Cog):
             
             await inter.response.edit_message(embed=embed, components=[buttons, bottom_button])
         
-        elif custom_id == "my_rank_ranking":        	
-            try:
-                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
-            except KeyError:
-                return
-            else:
-                await inter.response.defer(with_message=True, ephemeral=True)
-            
+        elif custom_id == "my_rank_ranking":
+            players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
+            await inter.response.defer(with_message=True, ephemeral=True)
             reverse, is_general = True, True
             style_scoreboarding = ""
+            stat = ""
 
             embed = disnake.Embed(color=EVA_COLOR, timestamp=functions.getTimeStamp())
             embed.set_author(name=inter.guild.name, icon_url=inter.guild.icon.url if inter.guild.icon else None)
@@ -626,22 +838,66 @@ class Listeners(commands.Cog):
                         players.sort(key=lambda x: x["player_infos"]["experience"][k] or 0, reverse=reverse)
                     else:
                         players.sort(key=lambda x: x["player_stats"][k] or 0, reverse=reverse)
+                    stat = k
 
                     is_general = False
                     style_scoreboarding = v
 
             for i in range(len(players)):
                 if players[i]["player_infos"]["memberId"] == inter.author.id:
+                    # Définitions des prefixes et des suffixes
+
+                    content, suffixe, prefixe = "", "", ""
+
+                    if not stat:
+                        pass
+                    elif stat == "experience":
+                        content = players[i]['player_infos']['experience']["level"] or 0
+                        prefixe="Niveau "
+                    else:
+                        if stat == "gameCount":
+                            suffixe = " Parties"
+                        elif stat == "gameTime":
+                            suffixe = " Heures"
+                        elif stat == "gameVictoryCount":
+                            suffixe = " Victoires"
+                        elif stat == "gameDefeatCount":
+                            suffixe = " Défaites"
+                        elif stat == "kills":
+                            suffixe = " Tués"
+                        elif stat == "deaths":
+                            suffixe = " Morts"
+                        elif stat == "assists":
+                            suffixe = " Assistances"
+                        elif stat == "killsByDeaths":
+                            suffixe = " K/D"
+                        elif stat == "traveledDistance":
+                            suffixe = " Mètres"
+                        elif stat == "traveledDistanceAverage":
+                            suffixe = " Mètres"
+                        elif stat == "bestKillStreak":
+                            suffixe = " Tués"
+                        elif stat == "inflictedDamage":
+                            suffixe = " Dégats infligés"
+                        
+                        if stat == "gameTime":
+                            content = round(players[i]['player_stats'][stat] / 3600, 1) or 0
+                        elif stat == "killsByDeaths":
+                            content = round(players[i]['player_stats'][stat], 3) or 0
+                        elif stat in ["traveledDistanceAverage", "traveledDistance"]:
+                            content = round(players[i]['player_stats'][stat])
+                        else:
+                            content = players[i]['player_stats'][stat] or 0
                     if i == 0:
                         if is_general:
                             embed.description = f"Vous êtes **{i+1}er** dans le classement avec un total de {players[i]['rank']} points."
                         else:
-                            embed.description = f"Vous êtes **{i+1}er** dans le classement par __{style_scoreboarding}__."
+                            embed.description = f"Vous êtes **{i+1}er** dans le classement par __{style_scoreboarding}__ | `{prefixe}{content}{suffixe}`"
                     else:
                         if is_general:
                             embed.description = f"Vous êtes **{i+1}ème** dans le classement avec un total de {players[i]['rank']} points."
                         else:
-                            embed.description = f"Vous êtes **{i+1}ème** dans le classement par __{style_scoreboarding}__."
+                            embed.description = f"Vous êtes **{i+1}ème** dans le classement par __{style_scoreboarding}__ | `{prefixe}{content}{suffixe}`"
             
                     await inter.followup.send(embed=embed)
                     return
@@ -681,11 +937,15 @@ class Listeners(commands.Cog):
             Gestionnaire d'erreur général pour toutes les commandes slash.
             
             Gère toutes les erreurs non gérées par leurs gestionnaires respectifs.
-        """            
+        """
+        if inter.application_command.has_error_handler():
+            return
+
         error_formated = "".join(traceback.format_exception(type(error), error, error.__traceback__))
         logging.error(error_formated)
         embed = disnake.Embed(color=EVA_COLOR, timestamp=functions.getTimeStamp())
         params = inter.filled_options
+
         if "player" in params.keys():
             player: disnake.User = params['player']
             if player.bot:

@@ -2,6 +2,7 @@ import os
 import typing
 import disnake
 import asyncpg
+from utils.errors import *
 from disnake.ext import commands
 from typing import Dict, Tuple, Union
 from gql import gql, Client
@@ -13,38 +14,6 @@ import datetime
 from utils.constants import *
 # Fonctions asynchrones
 
-async def getPlayerInfos(bot: commands.InteractionBot, player: disnake.User or disnake.Member = None) -> asyncpg.Record:
-  """
-    Fonction qui récupère les informations d'un joueur contenues dans la base de données.
-    
-    Parameters
-    ----------
-    player: :class:`disnake.User` or :class:`disnake.Member`
-      Indiquer un ``User`` ou ``Member`` Discord.
-    
-    Returns
-    -------
-    player_id: :class:`int`
-      Id du joueur Eva.
-    player_username: :class:`str`
-      Nom complet du joueur Eva avec le discriminant.
-    user_id: :class:`int`
-      Id du membre du serveur.
-  """
-  if player:
-    try:
-      async with bot.pool.acquire() as con:
-        user = await con.fetch("""
-        SELECT player_id, player_username, user_id
-        FROM players
-        WHERE user_id = $1
-        """, player.id)
-    except:
-      raise
-    else:
-      if user:
-        return user[0]
-  
 async def setCities():
   eva_cities = await getCitiesGQL()
   eva_cities["cities"] = []
@@ -55,9 +24,6 @@ async def setCities():
       eva_cities["cities"].append(city['name'])
   return eva_cities
 
-def getCities(self) -> Dict:
-  return self.bot.get_cog("Variables").eva_cities
-
 async def setGuildsResaChannels(pool: asyncpg.Pool):
   async with pool.acquire() as con:
     resa_channels = await con.fetch('''
@@ -66,7 +32,14 @@ async def setGuildsResaChannels(pool: asyncpg.Pool):
     ''')
   return resa_channels
 
+async def send_error(inter: disnake.ApplicationCommandInteraction, content: str = None) -> None:
+  embed = disnake.Embed(title="Une erreur est survenue", description=content,color=disnake.Color.red(), timestamp=getTimeStamp())
+  await inter.edit_original_response(embed=embed)
+
 # Fonctions synchrones
+
+def getCities(self) -> Dict:
+  return self.bot.get_cog("Variables").eva_cities
 
 def perfectGrey() -> disnake.Color:
   return disnake.Color.from_rgb(*PERFECT_GREY)
@@ -450,6 +423,278 @@ def getTransport() -> AIOHTTPTransport:
 
   return transport
 
+async def getStats(userId: int, seasonId: int) -> Tuple[Dict, Dict]:
+  """
+    Récupérer les statistiques publiques d'un joueur.
+
+    Parameters
+    ----------
+    userId: :class:`int`
+      L'id du compte Eva.
+    seasonId: :class:`int`
+      Le numéro de la saison.
+
+    Returns
+    -------
+    :class:`Tuple`(
+      player_infos: :class:`dict`
+        Les informations publiques du joueur Eva.
+      player_stats: :class:`dict`
+        Les stats publiques du joueur Eva.
+    )
+  """
+  async with Client(
+      transport=getTransport(),
+      fetch_schema_from_transport=False,
+  ) as session:
+
+      # Profile Query
+      player_query = gql("""
+        query ($userId: Int, $username: String, $seasonId: Int) {
+          player(userId: $userId, username: $username) {
+            ...
+        {
+          userId
+          username
+          displayName
+          seasonPass(seasonId: $seasonId) {
+            active
+          }
+          experience(gameId: 1, seasonId: $seasonId) {
+            experience
+            experienceForCurrentLevel
+            experienceForNextLevel
+            level
+            levelProgressionPercentage
+          }
+        }
+          }
+        }
+      """)
+
+      params = {"userId": userId, "seasonId": seasonId}
+
+      try:
+        player_result = await session.execute(player_query, variable_values=params)
+      except TransportQueryError as e:
+        if e.errors and e.errors[0]["message"] == 'User profile is private':
+          raise UserIsPrivate("Le profil Eva de l'utilisateur est définis sur privé ! Il doit être public.") from None
+        else:
+          raise
+
+      # Stats Query
+      stats_query = gql("""
+        query ($userId: Int, $username: String, $seasonId: Int) {
+          player(userId: $userId, username: $username) {
+            statistics(gameId: 1, seasonId: $seasonId) {
+              data {
+                gameCount
+                gameTime
+                gameVictoryCount
+                gameDefeatCount
+                gameDrawCount
+                inflictedDamage
+                bestInflictedDamage
+                kills
+                deaths
+                assists
+                killDeathRatio
+                killsByDeaths
+                traveledDistance
+                traveledDistanceAverage
+                bestKillStreak
+              }
+            }
+          }
+        }
+      """)
+
+      params = {"userId": userId, "seasonId": seasonId}
+
+      try:
+        stats_result = await session.execute(stats_query, variable_values=params)
+      except TransportQueryError as e:
+        if e.errors and e.errors[0]["message"] == 'User profile is private':
+          raise UserIsPrivate("Le profil Eva de l'utilisateur est définis sur privé ! Il doit être public.") from None
+        else:
+          raise
+
+      return player_result, stats_result
+
+async def getProfile(username: str) -> Dict:
+  """
+    Récupérer les informations publiques du profil d'un joueur.
+
+    Pour récupérer l'attribut ``username`` d'un membre, utilisez la fonction :meth:`getPlayerInfos(bot, member)`
+
+    Parameters
+    ----------
+    username: :class:`str`
+      Le nom d'utilisateur du joueur.
+
+    Returns
+    ------
+    userId: :class:`int`
+      Id du joueur.
+    username: :class:`str`
+      Nom complet du joueur avec le discriminant.
+    displayName: :class:`str`
+      Nom du joueur sans le discriminant.
+    seasonPass:
+      active: :class:`bool`
+    experience:
+      experience: :class:`int`
+      experienceForCurrentLevel: :class:`int`
+      experienceForNextLevel: :class:`int`
+      level: :class:`int`
+      levelProgressionPercentage: :class:`int`
+  """
+  async with Client(
+      transport=getTransport(),
+      fetch_schema_from_transport=False,
+  ) as session:
+
+      query = gql("""
+        query ($userId: Int, $username: String) {
+          player(userId: $userId, username: $username) {
+            ...
+        {
+          userId
+          username
+          displayName
+          seasonPass {
+            active
+          }
+          experience(gameId: 1) {
+            experience
+            experienceForCurrentLevel
+            experienceForNextLevel
+            level
+            levelProgressionPercentage
+          }
+        }
+          }
+        }
+      """)
+
+      params = {"username": username}
+
+      try:
+        result = await session.execute(query, variable_values=params)
+      except TransportQueryError as e:
+        if e.errors and e.errors[0]["message"] == 'User profile is private':
+          raise UserIsPrivate("Le profil Eva de l'utilisateur est définis sur privé ! Il doit être public.") from None
+        else:
+          raise
+
+      return result
+
+async def getAllPlayersInfos(pool: asyncpg.Pool) -> asyncpg.Record:
+  async with pool.acquire() as con:
+    players_infos = await con.fetch("""
+      SELECT player_id, player_username, user_id
+      FROM players
+      """)
+  return players_infos
+
+async def getPlayerInfos(bot: commands.InteractionBot, player: disnake.User or disnake.Member = None, updatePlayer: bool = False) -> asyncpg.Record:
+  """
+    Fonction qui récupère les informations d'un joueur contenues dans la base de données.
+    
+    Parameters
+    ----------
+    player: :class:`disnake.User` or :class:`disnake.Member`
+      Indiquer un ``User`` ou ``Member`` Discord.
+    
+    Returns
+    -------
+    player_id: :class:`int`
+      Id du joueur Eva.
+    player_username: :class:`str`
+      Nom complet du joueur Eva avec le discriminant.
+    user_id: :class:`int`
+      Id du membre du serveur.
+  """
+  if player:
+    async with bot.pool.acquire() as con:
+      user = await con.fetch("""
+        SELECT player_id, player_username, user_id
+        FROM players
+        WHERE user_id = $1
+        """, player.id)
+    
+      if user:
+        if updatePlayer:
+          await updatePlayerInfos(bot.pool, user[0])
+          user = await con.fetch("""
+            SELECT player_id, player_username, user_id
+            FROM players
+            WHERE user_id = $1
+            """, player.id)
+        return user[0]
+
+async def updatePlayerInfos(pool: asyncpg.Pool, playerInfos: asyncpg.Record) -> None:
+  """
+    Update player infos in the Database.
+
+    Parameters
+    ----------
+    pool: :class:`asyncpg.Pool`
+      self.bot.pool
+    playerId: :class:`int`
+      ID du joueur Eva
+  """
+  async with Client(
+      transport=getTransport(),
+      fetch_schema_from_transport=False,
+  ) as session:
+
+      query = gql("""
+        query ($userId: Int, $username: String) {
+          player(userId: $userId, username: $username) {
+            ...
+        {
+          userId
+          username
+          displayName
+          seasonPass {
+            active
+          }
+          experience(gameId: 1) {
+            experience
+            experienceForCurrentLevel
+            experienceForNextLevel
+            level
+            levelProgressionPercentage
+          }
+        }
+          }
+        }
+      """)
+
+      params = {"userId": playerInfos.get("player_id")}
+
+      try:
+        result = await session.execute(query, variable_values=params)
+      except TransportQueryError as e:
+        if e.errors and e.errors[0]["message"] == 'User profile is private':
+          raise UserIsPrivate("Le profil Eva de l'utilisateur est définis sur privé ! Il doit être public.") from None
+        else:
+          raise
+      
+      if result:
+        if result["player"]["username"] == playerInfos.get("player_username"):
+          return
+
+        username, display_name = result["player"]["username"], result["player"]["displayName"]
+
+        async with pool.acquire() as con:
+          await con.execute("""
+            UPDATE players
+            SET player_username = $2, player_displayname = $3
+            WHERE player_id = $1
+          """, playerInfos.get("player_id"), username, display_name)
+
 async def getLastGame(userId: int, seasonId: int, gameId: int = 1) -> Dict:
   """
     Récupérer les données de la dernière partie d'un joueur.
@@ -514,7 +759,14 @@ async def getLastGame(userId: int, seasonId: int, gameId: int = 1) -> Dict:
 
     params = {"userId": userId, "page": {"page": 1, "itemsLimit": 20}, "seasonId": seasonId}
 
-    result = await session.execute(query, variable_values=params)
+    try:
+      result = await session.execute(query, variable_values=params)
+    except TransportQueryError as e:
+        if e.errors and e.errors[0]["message"] == 'User profile is private':
+          raise UserIsPrivate("Le profil Eva de l'utilisateur est définis sur privé ! Il doit être public.") from None
+        else:
+          raise
+
     if result["gameHistories"]["nodes"]:
       return result["gameHistories"]["nodes"][gameId - 1]
 
@@ -566,95 +818,6 @@ async def getmyBattlepass() -> Dict:
     result = await session.execute(query)
     return result
 
-async def getStats(userId: int, seasonId: int) -> Tuple[Dict, Dict]:
-  """
-    Récupérer les statistiques publiques d'un joueur.
-
-    Parameters
-    ----------
-    userId: :class:`int`
-      L'id du compte Eva.
-    seasonId: :class:`int`
-      Le numéro de la saison.
-
-    Returns
-    -------
-    :class:`Tuple`(
-      player_infos: :class:`dict`
-        Les informations publiques du joueur Eva.
-      player_stats: :class:`dict`
-        Les stats publiques du joueur Eva.
-    )
-  """
-  async with Client(
-      transport=getTransport(),
-      fetch_schema_from_transport=False,
-  ) as session:
-
-      # Profile Query
-      player_query = gql("""
-        query ($userId: Int, $username: String, $seasonId: Int) {
-          player(userId: $userId, username: $username) {
-            ...
-        {
-          userId
-          username
-          displayName
-          seasonPass(seasonId: $seasonId) {
-            active
-          }
-          experience(gameId: 1, seasonId: $seasonId) {
-            experience
-            experienceForCurrentLevel
-            experienceForNextLevel
-            level
-            levelProgressionPercentage
-          }
-        }
-          }
-        }
-      """)
-
-      params = {"userId": userId, "seasonId": seasonId}
-
-      player_result = await session.execute(player_query, variable_values=params)
-
-      # Stats Query
-      stats_query = gql("""
-        query ($userId: Int, $username: String, $seasonId: Int) {
-          player(userId: $userId, username: $username) {
-            statistics(gameId: 1, seasonId: $seasonId) {
-              data {
-                gameCount
-                gameTime
-                gameVictoryCount
-                gameDefeatCount
-                gameDrawCount
-                inflictedDamage
-                bestInflictedDamage
-                kills
-                deaths
-                assists
-                killDeathRatio
-                killsByDeaths
-                traveledDistance
-                traveledDistanceAverage
-                bestKillStreak
-              }
-            }
-          }
-        }
-      """)
-
-      params = {"userId": userId, "seasonId": seasonId}
-
-      try:
-        stats_result = await session.execute(stats_query, variable_values=params)
-      except TransportQueryError:
-        raise
-      else:
-        return player_result, stats_result
-
 async def getSeasonsList() -> typing.List:
   """
     Récupérer la liste des saisons.
@@ -687,68 +850,6 @@ async def getSeasonsList() -> typing.List:
       result = await session.execute(query)
 
       return result["listSeasons"]["nodes"]
-
-async def getProfile(username: str) -> Dict:
-  """
-    Récupérer les informations publiques du profil d'un joueur.
-
-    Pour récupérer l'attribut ``username`` d'un membre, utilisez la fonction :meth:`getPlayerInfos(bot, member)`
-
-    Parameters
-    ----------
-    username: :class:`str`
-      Le nom d'utilisateur du joueur.
-
-    Returns
-    ------
-    userId: :class:`int`
-      Id du joueur.
-    username: :class:`str`
-      Nom complet du joueur avec le discriminant.
-    displayName: :class:`str`
-      Nom du joueur sans le discriminant.
-    seasonPass:
-      active: :class:`bool`
-    experience:
-      experience: :class:`int`
-      experienceForCurrentLevel: :class:`int`
-      experienceForNextLevel: :class:`int`
-      level: :class:`int`
-      levelProgressionPercentage: :class:`int`
-  """
-  async with Client(
-      transport=getTransport(),
-      fetch_schema_from_transport=False,
-  ) as session:
-
-      query = gql("""
-        query ($userId: Int, $username: String) {
-          player(userId: $userId, username: $username) {
-            ...
-        {
-          userId
-          username
-          displayName
-          seasonPass {
-            active
-          }
-          experience(gameId: 1) {
-            experience
-            experienceForCurrentLevel
-            experienceForNextLevel
-            level
-            levelProgressionPercentage
-          }
-        }
-          }
-        }
-      """)
-
-      params = {"username": username}
-
-      result = await session.execute(query, variable_values=params)
-
-      return result
 
 async def getMe() -> Dict:
   """
