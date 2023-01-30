@@ -40,9 +40,6 @@ jobs:
             my-docker-hub-namespace/my-docker-hub-repository
             ghcr.io/garohrl/evabot
       -
-        name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-      -
         name: Build and push
         uses: docker/build-push-action@v3
         with:
