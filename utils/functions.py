@@ -4,7 +4,7 @@ import disnake
 import asyncpg
 from utils.errors import *
 from disnake.ext import commands
-from typing import Dict, Tuple, Union
+from typing import Dict, List, Tuple, Union
 from gql import gql, Client
 from gql.transport.exceptions import TransportQueryError
 from gql.transport.aiohttp import AIOHTTPTransport
@@ -589,13 +589,26 @@ async def getProfile(username: str) -> Dict:
 
       return result
 
-async def getAllPlayersInfos(pool: asyncpg.Pool) -> asyncpg.Record:
+async def getAllPlayersInfos(bot: commands.InteractionBot, pool: asyncpg.Pool) -> List[Dict[Dict, Dict]]:
+  current_season_number = getCurrentSeasonNumber(bot)
+  all_players: List[Dict[Dict, Dict]] = []
+
   async with pool.acquire() as con:
     players_infos = await con.fetch("""
       SELECT player_id, player_username, user_id
       FROM players
       """)
-  return players_infos
+
+  for player in players_infos:
+    try:
+      player_infos, player_stats = await getStats(player["player_id"], current_season_number)
+    except UserIsPrivate:
+      continue
+    else:
+      player_infos["player"]["memberId"] = player["user_id"]
+      all_players.append({"player_infos": player_infos["player"], "player_stats": player_stats["player"]["statistics"]["data"]})
+
+  return all_players
 
 async def getPlayerInfos(bot: commands.InteractionBot, player: disnake.User or disnake.Member = None, updatePlayer: bool = False) -> asyncpg.Record:
   """
@@ -1087,12 +1100,12 @@ async def getEachDayInTheWeek() -> Dict[int, datetime.datetime]:
     actual_date += datetime.timedelta(days=1)
   return days_with_dates
 
-def getCurrentSeason(self) -> Dict:
-  for season in self.bot.get_cog("Variables").seasons_list:
+def getCurrentSeason(bot: commands.InteractionBot) -> Dict:
+  for season in bot.get_cog("Variables").seasons_list:
     if season["active"]:
       return season
 
-def getCurrentSeasonNumber(self) -> int:
-  for season in self.bot.get_cog("Variables").seasons_list:
+def getCurrentSeasonNumber(bot: commands.InteractionBot) -> int:
+  for season in bot.get_cog("Variables").seasons_list:
     if season["active"]:
       return season["seasonNumber"]

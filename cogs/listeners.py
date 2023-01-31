@@ -3,11 +3,12 @@ import json
 import logging
 from math import ceil
 from typing import List
+import typing
 import disnake
-from disnake import errors
+from disnake import SelectOption, errors
 from disnake.ext import commands
 from disnake.ext.commands import errors as commandsErrors
-from disnake.ui import Button
+from disnake.ui import Button, Select, ActionRow
 from disnake.utils import format_dt
 import traceback
 from utils.constants import *
@@ -136,19 +137,22 @@ class Listeners(commands.Cog):
             await inter.followup.send(embed=embed)
 
         elif custom_id == "other_ranking":
-            try:
-                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
-            except KeyError:
-                return
-
-            city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
-            pages = ceil(len(players)/MAX_PLAYERS_SCOREBOARD)
+            embed = disnake.Embed(color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
             selections = inter.values
+
+            if inter.message.embeds[0].author.name.startswith("Classement des meilleurs joueurs"):
+                city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
+                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
+                embed.title = f"Classement par {STATS.get(selections[0])} des meilleurs joueurs de EVA {city}"
+                embed.set_author(name=inter.guild.name, icon_url=inter.guild.icon.url if inter.guild.icon else None)
+            else:
+                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking["all_players"])
+                embed.title = f"Classement mondial par {STATS.get(selections[0])} des meilleurs joueurs EVA"
+
+            pages = ceil(len(players)/MAX_PLAYERS_SCOREBOARD)
             buttons = None
             reverse = True
 
-            embed = disnake.Embed(title=f"Classement par {STATS.get(selections[0])} des meilleurs joueurs de EVA {city}", color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
-            embed.set_author(name=inter.guild.name, icon_url=inter.guild.icon.url if inter.guild.icon else None)
             embed.set_footer(text=f"Page 1/{pages}")
             embed.description = ""
 
@@ -166,6 +170,7 @@ class Listeners(commands.Cog):
                     break
 
                 member = inter.guild.get_member(players[i]['player_infos']['memberId'])
+
                 if i == 0:
                     first_message = ":first_place:"
                 elif i == 1:
@@ -178,54 +183,53 @@ class Listeners(commands.Cog):
                     for n in number:
                         new_number += numbers[int(n)]
                     first_message =  f"{new_number}"
-                
-                if member:
-                    # Définitions des prefixes et des suffixes
 
-                    content, suffixe, prefixe = "", "", ""
+                # Définitions des prefixes et des suffixes
 
-                    if selections[0] == "experience":
-                        content = players[i]['player_infos']['experience']["level"] or 0
-                        prefixe="Niveau "
+                content, suffixe, prefixe = "", "", ""
+
+                if selections[0] == "experience":
+                    content = players[i]['player_infos']['experience']["level"] or 0
+                    prefixe="Niveau "
+                else:
+                    if selections[0] == "gameCount":
+                        suffixe = " Parties"
+                    elif selections[0] == "gameTime":
+                        suffixe = " Heures"
+                    elif selections[0] == "gameVictoryCount":
+                        suffixe = " Victoires"
+                    elif selections[0] == "gameDefeatCount":
+                        suffixe = " Défaites"
+                    elif selections[0] == "kills":
+                        suffixe = " Tués"
+                    elif selections[0] == "deaths":
+                        suffixe = " Morts"
+                    elif selections[0] == "assists":
+                        suffixe = " Assistances"
+                    elif selections[0] == "killsByDeaths":
+                        suffixe = " K/D"
+                    elif selections[0] == "traveledDistance":
+                        suffixe = " Mètres"
+                    elif selections[0] == "traveledDistanceAverage":
+                        suffixe = " Mètres"
+                    elif selections[0] == "bestKillStreak":
+                        suffixe = " Tués"
+                    elif selections[0] == "inflictedDamage":
+                        suffixe = " Dégats infligés"
+                    
+                    if selections[0] == "gameTime":
+                        content = round(players[i]['player_stats'][selections[0]] / 3600, 1) or 0
+                    elif selections[0] == "killsByDeaths":
+                        content = round(players[i]['player_stats'][selections[0]], 3) or 0
+                    elif selections[0] in ["traveledDistanceAverage", "traveledDistance"]:
+                        content = round(players[i]['player_stats'][selections[0]])
                     else:
-                        if selections[0] == "gameCount":
-                            suffixe = " Parties"
-                        elif selections[0] == "gameTime":
-                            suffixe = " Heures"
-                        elif selections[0] == "gameVictoryCount":
-                            suffixe = " Victoires"
-                        elif selections[0] == "gameDefeatCount":
-                            suffixe = " Défaites"
-                        elif selections[0] == "kills":
-                            suffixe = " Tués"
-                        elif selections[0] == "deaths":
-                            suffixe = " Morts"
-                        elif selections[0] == "assists":
-                            suffixe = " Assistances"
-                        elif selections[0] == "killsByDeaths":
-                            suffixe = " K/D"
-                        elif selections[0] == "traveledDistance":
-                            suffixe = " Mètres"
-                        elif selections[0] == "traveledDistanceAverage":
-                            suffixe = " Mètres"
-                        elif selections[0] == "bestKillStreak":
-                            suffixe = " Tués"
-                        elif selections[0] == "inflictedDamage":
-                            suffixe = " Dégats infligés"
-                        
-                        if selections[0] == "gameTime":
-                            content = round(players[i]['player_stats'][selections[0]] / 3600, 1) or 0
-                        elif selections[0] == "killsByDeaths":
-                            content = round(players[i]['player_stats'][selections[0]], 3) or 0
-                        elif selections[0] in ["traveledDistanceAverage", "traveledDistance"]:
-                            content = round(players[i]['player_stats'][selections[0]])
-                        else:
-                            content = players[i]['player_stats'][selections[0]] or 0
+                        content = players[i]['player_stats'][selections[0]] or 0
 
-                    if i + 1 == len(players):
-                        embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n\n"
-                    else:
-                        embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
+                if i + 1 == len(players):
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() and member else players[i]['player_infos']['username']} | `{prefixe}{content}{suffixe}`\n\n"
+                else:
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() and member else players[i]['player_infos']['username']} | `{prefixe}{content}{suffixe}`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
             
             if pages == 1:
                 buttons = [
@@ -329,10 +333,13 @@ class Listeners(commands.Cog):
         elif custom_id == "more_ranking":
             players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
             await inter.response.defer(with_message=True, ephemeral=True)
-            
             city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
             reverse = True
-            embed_title = f"Classement des meilleurs joueurs de EVA {city}"
+
+            if not city:
+                embed_title = "Classement mondial des meilleurs joueurs EVA"
+            else:
+                embed_title = f"Classement des meilleurs joueurs de EVA {city}"
 
             for k, v in STATS.items():
                 if v in inter.message.embeds[0].title:
@@ -355,6 +362,7 @@ class Listeners(commands.Cog):
                     break
 
                 member = inter.guild.get_member(players[i]['player_infos']['memberId'])
+
                 if i == 0:
                     first_message = ":first_place:"
                 elif i == 1:
@@ -369,9 +377,9 @@ class Listeners(commands.Cog):
                     first_message =  f"{new_number}"
 
                 if i + 1 == len(players):
-                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{players[i]['rank']} Points`\n\n"
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() and member else players[i]['player_infos']['username']} | `{players[i]['rank']} Points`\n\n"
                 else:
-                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{players[i]['rank']} Points`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() and member else players[i]['player_infos']['username']} | `{players[i]['rank']} Points`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
 
             buttons = [
                 Button(custom_id="begin_ranking", emoji="⏪", disabled=True),
@@ -385,11 +393,18 @@ class Listeners(commands.Cog):
             await inter.followup.send(embed=embed, components=[buttons, bottom_button], ephemeral=True)
 
         elif custom_id == "begin_ranking":
-            players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
-            city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
+            city = inter.message.embeds[0].title.split("EVA")[1].split("(")[0].strip()
+            components = []
+
+            if not city:
+                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking["all_players"])
+                embed_title = "Classement mondial des meilleurs joueurs EVA"
+            else:
+                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
+                embed_title = f"Classement des meilleurs joueurs de EVA {city}"
+
             pages = ceil(len(players)/MAX_PLAYERS_SCOREBOARD)
             reverse = True
-            embed_title = f"Classement des meilleurs joueurs de EVA {city}"
             stat = ""
             
             for k, v in STATS.items():
@@ -401,7 +416,10 @@ class Listeners(commands.Cog):
                     else:
                         players.sort(key=lambda x: x["player_stats"][k] or 0, reverse=reverse)
                     stat = k
-                    embed_title = f"Classement par {v} des meilleurs joueurs de EVA {city}"
+                    if not city:
+                        embed_title = f"Classement mondial par {v} des meilleurs joueurs EVA"
+                    else:
+                        embed_title = f"Classement par {v} des meilleurs joueurs de EVA {city}"
 
             embed = disnake.Embed(title=embed_title, color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
             embed.set_author(name=inter.guild.name, icon_url=inter.guild.icon.url if inter.guild.icon else None)
@@ -413,6 +431,7 @@ class Listeners(commands.Cog):
                     break
 
                 member = inter.guild.get_member(players[i]['player_infos']['memberId'])
+
                 if i == 0:
                     first_message = ":first_place:"
                 elif i == 1:
@@ -473,9 +492,9 @@ class Listeners(commands.Cog):
                             suffixe = " Points"
                 
                 if i + 1 == len(players):
-                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n\n"
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() and member else players[i]['player_infos']['username']} | `{prefixe}{content}{suffixe}`\n\n"
                 else:
-                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() and member else players[i]['player_infos']['username']} | `{prefixe}{content}{suffixe}`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
 
             buttons = [
                 Button(custom_id="begin_ranking", emoji="⏪", disabled=True),
@@ -483,19 +502,36 @@ class Listeners(commands.Cog):
                 Button(custom_id="next_ranking", emoji="➡️"),
                 Button(custom_id="final_ranking", emoji="⏩")
             ]
+
+            components.append(buttons)
             
             bottom_button = Button(style=disnake.ButtonStyle.success, label="Mon classement", custom_id="my_rank_ranking")
+            components.append(bottom_button)
+
+            select_menu = None
+            rows = ActionRow.rows_from_message(inter.message)
+            for _, component in ActionRow.walk_components(rows):
+                if component.type == disnake.ComponentType.string_select:
+                    components.append(component)
             
-            await inter.response.edit_message(embed=embed, components=[buttons, bottom_button])
+            await inter.response.edit_message(embed=embed, components=components)
 
         elif custom_id == "previous_ranking":
-            players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])   
-            city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
+            city = inter.message.embeds[0].title.split("EVA")[1].split("(")[0].strip()
+            components = []
+
+            if not city:
+                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking["all_players"])   
+                embed_title = "Classement mondial des meilleurs joueurs EVA"
+            else:
+                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])   
+                embed_title = f"Classement des meilleurs joueurs de EVA {city}"
+
             pages = ceil(len(players)/MAX_PLAYERS_SCOREBOARD)
             actual_page = int(''.join(filter(str.isdigit, inter.message.embeds[0].footer.text.split("/")[0])))
             previous_page = actual_page - 1
             reverse = True
-            embed_title = f"Classement des meilleurs joueurs de EVA {city}"
+            
             stat = ""
 
             for k, v in STATS.items():
@@ -507,7 +543,10 @@ class Listeners(commands.Cog):
                     else:
                         players.sort(key=lambda x: x["player_stats"][k] or 0, reverse=reverse)
                     stat = k
-                    embed_title = f"Classement par {v} des meilleurs joueurs de EVA {city}"
+                    if not city:
+                        embed_title = f"Classement mondial par {v} des meilleurs joueurs EVA"
+                    else:
+                        embed_title = f"Classement par {v} des meilleurs joueurs de EVA {city}"
 
             embed = disnake.Embed(title=embed_title, color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
             embed.set_author(name=inter.guild.name, icon_url=inter.guild.icon.url if inter.guild.icon else None)
@@ -519,6 +558,7 @@ class Listeners(commands.Cog):
                     break
 
                 member = inter.guild.get_member(players[i]['player_infos']['memberId'])
+
                 if i == 0:
                     first_message = ":first_place:"
                 elif i == 1:
@@ -579,9 +619,9 @@ class Listeners(commands.Cog):
                             suffixe = " Points"
 
                 if i + 1 == len(players):
-                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n\n"
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() and member else players[i]['player_infos']['username']} | `{prefixe}{content}{suffixe}`\n\n"
                 else:
-                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() and member else players[i]['player_infos']['username']} | `{prefixe}{content}{suffixe}`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
 
             if previous_page == 1:
                 buttons = [
@@ -597,19 +637,36 @@ class Listeners(commands.Cog):
                     Button(custom_id="next_ranking", emoji="➡️"),
                     Button(custom_id="final_ranking", emoji="⏩")
                 ]
+
+            components.append(buttons)
             
             bottom_button = Button(style=disnake.ButtonStyle.success, label="Mon classement", custom_id="my_rank_ranking")
+            components.append(bottom_button)
+
+            select_menu = None
+            rows = ActionRow.rows_from_message(inter.message)
+            for _, component in ActionRow.walk_components(rows):
+                if component.type == disnake.ComponentType.string_select:
+                    components.append(component)
             
-            await inter.response.edit_message(embed=embed, components=[buttons, bottom_button])
+            await inter.response.edit_message(embed=embed, components=components)
 
         elif custom_id == "next_ranking":
-            players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
-            city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
+            city = inter.message.embeds[0].title.split("EVA")[1].split("(")[0].strip()
+            components = []
+
+            if not city:
+                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking["all_players"])   
+                embed_title = "Classement mondial des meilleurs joueurs EVA"
+            else:
+                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])   
+                embed_title = f"Classement des meilleurs joueurs de EVA {city}"
+
             pages = ceil(len(players)/MAX_PLAYERS_SCOREBOARD)
             actual_page = int(''.join(filter(str.isdigit, inter.message.embeds[0].footer.text.split("/")[0])))
             next_page = actual_page + 1
             reverse = True
-            embed_title = f"Classement des meilleurs joueurs de EVA {city}"
+            
             stat = ""
 
             for k, v in STATS.items():
@@ -621,7 +678,10 @@ class Listeners(commands.Cog):
                     else:
                         players.sort(key=lambda x: x["player_stats"][k] or 0, reverse=reverse)
                     stat = k
-                    embed_title = f"Classement par {v} des meilleurs joueurs de EVA {city}"
+                    if not city:
+                        embed_title = f"Classement mondial par {v} des meilleurs joueurs EVA"
+                    else:
+                        embed_title = f"Classement par {v} des meilleurs joueurs de EVA {city}"
 
             embed = disnake.Embed(title=embed_title, color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
             embed.set_author(name=inter.guild.name, icon_url=inter.guild.icon.url if inter.guild.icon else None)
@@ -633,6 +693,7 @@ class Listeners(commands.Cog):
                     break
 
                 member = inter.guild.get_member(players[i]['player_infos']['memberId'])
+
                 if i == 0:
                     first_message = ":first_place:"
                 elif i == 1:
@@ -693,9 +754,9 @@ class Listeners(commands.Cog):
                             suffixe = " Points"
 
                 if i + 1 == len(players):
-                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n\n"
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() and member else players[i]['player_infos']['username']} | `{prefixe}{content}{suffixe}`\n\n"
                 else:
-                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() and member else players[i]['player_infos']['username']} | `{prefixe}{content}{suffixe}`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
 
             if next_page >= pages:
                 buttons = [
@@ -711,17 +772,32 @@ class Listeners(commands.Cog):
                     Button(custom_id="next_ranking", emoji="➡️"),
                     Button(custom_id="final_ranking", emoji="⏩")
                 ]
+
+            components.append(buttons)
             
             bottom_button = Button(style=disnake.ButtonStyle.success, label="Mon classement", custom_id="my_rank_ranking")
+            components.append(bottom_button)
+
+            select_menu = None
+            rows = ActionRow.rows_from_message(inter.message)
+            for _, component in ActionRow.walk_components(rows):
+                if component.type == disnake.ComponentType.string_select:
+                    components.append(component)
             
-            await inter.response.edit_message(embed=embed, components=[buttons, bottom_button])
+            await inter.response.edit_message(embed=embed, components=components)
 
         elif custom_id == "final_ranking":
-            players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
-            city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
+            city = inter.message.embeds[0].title.split("EVA")[1].split("(")[0].strip()
+            components = []
+
+            if not city:
+                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking["all_players"])
+                embed_title = "Classement mondial des meilleurs joueurs EVA"
+            else:
+                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
+                embed_title = f"Classement des meilleurs joueurs de EVA {city}"
             pages = ceil(len(players)/MAX_PLAYERS_SCOREBOARD)
             reverse = True
-            embed_title = f"Classement des meilleurs joueurs de EVA {city}"
             stat = ""
 
             for k, v in STATS.items():
@@ -733,7 +809,10 @@ class Listeners(commands.Cog):
                     else:
                         players.sort(key=lambda x: x["player_stats"][k] or 0, reverse=reverse)
                     stat = k
-                    embed_title = f"Classement par {v} des meilleurs joueurs de EVA {city}"
+                    if not city:
+                        embed_title = f"Classement mondial par {v} des meilleurs joueurs EVA"
+                    else:
+                        embed_title = f"Classement par {v} des meilleurs joueurs de EVA {city}"
 
             embed = disnake.Embed(title=embed_title, color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
             embed.set_author(name=inter.guild.name, icon_url=inter.guild.icon.url if inter.guild.icon else None)
@@ -745,6 +824,7 @@ class Listeners(commands.Cog):
                     break
 
                 member = inter.guild.get_member(players[i]['player_infos']['memberId'])
+
                 if i == 0:
                     first_message = ":first_place:"
                 elif i == 1:
@@ -805,9 +885,9 @@ class Listeners(commands.Cog):
                             suffixe = " Points"
 
                 if i + 1 == len(players):
-                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n\n"
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() and member else players[i]['player_infos']['username']} | `{prefixe}{content}{suffixe}`\n\n"
                 else:
-                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() else member.display_name} | `{prefixe}{content}{suffixe}`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() and member else players[i]['player_infos']['username']} | `{prefixe}{content}{suffixe}`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
 
             buttons = [
                 Button(custom_id="begin_ranking", emoji="⏪"),
@@ -815,13 +895,32 @@ class Listeners(commands.Cog):
                 Button(custom_id="next_ranking", emoji="➡️", disabled=True),
                 Button(custom_id="final_ranking", emoji="⏩", disabled=True)
             ]
+
+            components.append(buttons)
             
             bottom_button = Button(style=disnake.ButtonStyle.success, label="Mon classement", custom_id="my_rank_ranking")
+            components.append(bottom_button)
+
+            select_menu = None
+            rows = ActionRow.rows_from_message(inter.message)
+            for _, component in ActionRow.walk_components(rows):
+                if component.type == disnake.ComponentType.string_select:
+                    components.append(component)
             
-            await inter.response.edit_message(embed=embed, components=[buttons, bottom_button])
+            await inter.response.edit_message(embed=embed, components=components)
         
         elif custom_id == "my_rank_ranking":
-            players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
+            try:
+                city = inter.message.embeds[0].title.split("EVA")[1].split("(")[0].strip()
+            except IndexError:
+                city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
+                players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
+            else:
+                if not city:
+                    players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking["all_players"])
+                else:
+                    players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
+
             await inter.response.defer(with_message=True, ephemeral=True)
             reverse, is_general = True, True
             style_scoreboarding = ""
@@ -888,16 +987,29 @@ class Listeners(commands.Cog):
                             content = round(players[i]['player_stats'][stat])
                         else:
                             content = players[i]['player_stats'][stat] or 0
-                    if i == 0:
-                        if is_general:
-                            embed.description = f"Vous êtes **{i+1}er** dans le classement avec un total de {players[i]['rank']} points."
+                    
+                    if not city:
+                        if i == 0:
+                            if is_general:
+                                embed.description = f"Vous êtes **{i+1}er** dans le classement mondial avec un total de {players[i]['rank']} points."
+                            else:
+                                embed.description = f"Vous êtes **{i+1}er** dans le classement mondial par __{style_scoreboarding}__ | `{prefixe}{content}{suffixe}`"
                         else:
-                            embed.description = f"Vous êtes **{i+1}er** dans le classement par __{style_scoreboarding}__ | `{prefixe}{content}{suffixe}`"
+                            if is_general:
+                                embed.description = f"Vous êtes **{i+1}ème** dans le classement mondial avec un total de {players[i]['rank']} points."
+                            else:
+                                embed.description = f"Vous êtes **{i+1}ème** dans le classement mondial par __{style_scoreboarding}__ | `{prefixe}{content}{suffixe}`"
                     else:
-                        if is_general:
-                            embed.description = f"Vous êtes **{i+1}ème** dans le classement avec un total de {players[i]['rank']} points."
+                        if i == 0:
+                            if is_general:
+                                embed.description = f"Vous êtes **{i+1}er** dans le classement avec un total de {players[i]['rank']} points."
+                            else:
+                                embed.description = f"Vous êtes **{i+1}er** dans le classement par __{style_scoreboarding}__ | `{prefixe}{content}{suffixe}`"
                         else:
-                            embed.description = f"Vous êtes **{i+1}ème** dans le classement par __{style_scoreboarding}__ | `{prefixe}{content}{suffixe}`"
+                            if is_general:
+                                embed.description = f"Vous êtes **{i+1}ème** dans le classement avec un total de {players[i]['rank']} points."
+                            else:
+                                embed.description = f"Vous êtes **{i+1}ème** dans le classement par __{style_scoreboarding}__ | `{prefixe}{content}{suffixe}`"
             
                     await inter.followup.send(embed=embed)
                     return
@@ -930,6 +1042,93 @@ class Listeners(commands.Cog):
             if any_role:
                 embed.description = ":x: Vous n'avez aucun rôle de la liste !"
             await inter.followup.send(embed=embed)
+
+        elif custom_id == "global_ranking":
+            players: typing.List[typing.Dict[typing.Dict, typing.Dict]] = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking["all_players"])
+            await inter.response.defer(with_message=True, ephemeral=True)
+            reverse = True
+            embed_title = "Classement mondial des meilleurs joueurs EVA"
+
+            for k, v in STATS.items():
+                if v in inter.message.embeds[0].title:
+                    if k in ["deaths", "gameDefeatCount"]:
+                        reverse = False
+                    if k == "experience":
+                        players.sort(key=lambda x: x["player_infos"]["experience"][k] or 0, reverse=reverse)
+                    else:
+                        players.sort(key=lambda x: x["player_stats"][k] or 0, reverse=reverse)
+                    embed_title = f"Classement mondial par {v} des meilleurs joueurs EVA"
+
+            embed = disnake.Embed(title=embed_title, color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
+            embed.set_author(name=inter.guild.name, icon_url=inter.guild.icon.url if inter.guild.icon else None)
+            
+            embed.set_footer(text=f"Page 1/{ceil(len(players)/MAX_PLAYERS_SCOREBOARD)}")
+            embed.description = ""
+            select_options = []
+
+            for stat in players[0]["player_stats"].keys():
+                reverse = True
+
+                if stat in ["bestInflictedDamage", "killDeathRatio", "gameDrawCount"]:
+                    continue
+
+                elif stat in ["deaths", "gameDefeatCount"]:
+                    reverse = False
+                
+                if stat == "experience":
+                    players.sort(key=lambda x: x["player_infos"]["experience"][stat] or 0, reverse=reverse)
+                else:
+                    players.sort(key=lambda x: x["player_stats"][stat] or 0, reverse=reverse)
+                select_options.append(SelectOption(label=STATS[stat], value=stat, description=f"Voir le classement mondial par {STATS[stat]}"))
+
+                for i in range(len(players)):
+                    try:
+                        players[i]["rank"] += i + 1
+                    except:
+                        players[i]["rank"] = 0
+
+            players.sort(key=lambda x: x["rank"])
+
+            self.bot.get_cog("Variables").guilds_ranking["all_players"] = copy.deepcopy(players)
+
+            for i in range(len(players)):
+                if i == MAX_PLAYERS_SCOREBOARD:
+                    break
+
+                member = inter.guild.get_member(players[i]['player_infos']['memberId'])
+
+                if i == 0:
+                    first_message = ":first_place:"
+                elif i == 1:
+                    first_message = ":second_place:"
+                elif i == 2:
+                    first_message = ":third_place:"
+                else:
+                    number = str(i+1)
+                    new_number = ""
+                    for n in number:
+                        new_number += numbers[int(n)]
+                    first_message =  f"{new_number}"
+
+                if i + 1 == len(players):
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() and member else players[i]['player_infos']['username']} | `{players[i]['rank']} Points`\n\n"
+                else:
+                    embed.description += f"{first_message}: {member.mention if not inter.author.is_on_mobile() and member else players[i]['player_infos']['username']} | `{players[i]['rank']} Points`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
+
+            buttons = [
+                Button(custom_id="begin_ranking", emoji="⏪", disabled=True),
+                Button(custom_id="previous_ranking", emoji="⬅️", disabled=True),
+                Button(custom_id="next_ranking", emoji="➡️"),
+                Button(custom_id="final_ranking", emoji="⏩")
+            ]
+            
+            select_options.append(SelectOption(label=STATS["experience"], value="experience", description=f"Voir le classement mondial par {STATS['experience']}"))
+
+            select = Select(placeholder="Choisir un autre classement", options=select_options, custom_id="other_ranking")
+
+            bottom_button = Button(style=disnake.ButtonStyle.success, label="Mon classement", custom_id="my_rank_ranking")
+            
+            await inter.followup.send(embed=embed, components=[buttons, bottom_button, select], ephemeral=True)
 
     @commands.Cog.listener()
     async def on_slash_command_error(self, inter: disnake.ApplicationCommandInteraction, error: commands.CommandError):
