@@ -1,7 +1,7 @@
 import json
 import disnake
 import re
-from gql.transport import exceptions as GQLExceptions
+import copy
 from disnake import SelectOption, errors
 from disnake.ext import commands, tasks
 from disnake.ui import ActionRow, Button, Select
@@ -42,20 +42,21 @@ class Tasks(commands.Cog):
     # Set Best Players Ranking
     @tasks.loop(minutes=15)
     async def set_best_players_ranking(self):
-        current_season_number = functions.getCurrentSeasonNumber(self)
-        current_season = functions.getCurrentSeason(self)
+        current_season_number = functions.getCurrentSeasonNumber(self.bot)
+        current_season = functions.getCurrentSeason(self.bot)
         current_season_from = format_dt(datetime.datetime.fromisoformat(current_season['from']))
         current_season_to = format_dt(datetime.datetime.fromisoformat(current_season['to']))
         current_season_to_R = format_dt(datetime.datetime.fromisoformat(current_season['to']), "R")
+        all_players: typing.List[typing.Dict[typing.Dict, typing.Dict]] = await functions.getAllPlayersInfos(self.bot, self.bot.pool)
+        self.bot.get_cog("Variables").guilds_ranking["all_players"] = all_players
+        cities = functions.getCities(self)
+        best_players_ranking_channels = []
 
         async with self.bot.pool.acquire() as con:
             best_players_ranking_channels_id = await con.fetch('''
             SELECT best_players_ranking_channel_id, guild_id, city_id
             FROM global_config
             ''')
-
-        best_players_ranking_channels = []
-        cities = functions.getCities(self)
         
         for record in best_players_ranking_channels_id:
             if record["best_players_ranking_channel_id"] is not None:
@@ -76,14 +77,12 @@ class Tasks(commands.Cog):
             edited = False
             more = False
             buttons = []
-            players_infos = await functions.getAllPlayersInfos(self.bot.pool)
             city_id = [record["city_id"] for record in best_players_ranking_channels_id if record["guild_id"] == guild.id][0]
             city = functions.getCityfromDict(cities, city_id=city_id)
+            players = [copy.deepcopy(player_list) for player_list in all_players if guild.get_member(player_list["player_infos"]["memberId"])]
 
             if not channel.permissions_for(guild.me).send_messages or not channel.permissions_for(guild.me).embed_links or not city:
                 continue
-            
-            players: typing.List[typing.Dict[typing.Dict, typing.Dict]] = []
 
             embed1 = disnake.Embed(title=f"Actualisation {format_dt(functions.getTimeStamp() + datetime.timedelta(minutes=15), style='R')}", color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
             embed2 = disnake.Embed(title="Le classement est calculé en fonction des statistiques suivantes", color=disnake.Color.dark_gold())
@@ -97,23 +96,6 @@ class Tasks(commands.Cog):
             embed2.add_field("Comment lire votre score", "Moins vous avez de points et plus vous êtes en tête dans le classement")
             embed3.description = f"Tapez la commande `/{functions.getLocalization(self.bot, 'LINK_NAME', guild.preferred_locale)}` en message privé à {guild.me.mention} pour associer votre compte Eva à votre compte Discord !\nUne fois l'association terminée patientez le temps indiqué plus haut pour voir votre position dans le classement !\nCliquez sur `Mon classement` si vous ne vous trouvez pas pour afficher votre position !"
             embed4.description = f"Vérifiez bien sur le site [EVA.GG](https://www.eva.gg) que la case __**Profil public**__ est cochée pour que {guild.me.mention} puisse récupérer les infos de votre profil !"
-
-            for player_infos in players_infos:
-                member = guild.get_member(player_infos["user_id"])
-                
-                if not member:
-                    continue
-
-                try:
-                    player_infos, player_stats = await functions.getStats(player_infos["player_id"], current_season_number)
-                except UserIsPrivate:
-                    continue
-                else:
-                    player_infos["player"]["memberId"] = member.id
-                    players.append({"player_infos": player_infos["player"], "player_stats": player_stats["player"]["statistics"]["data"]})
-            
-            if not players:
-                continue
 
             select_options = []
             
@@ -153,6 +135,10 @@ class Tasks(commands.Cog):
                     break
 
                 member = guild.get_member(players[i]['player_infos']['memberId'])
+
+                if not member:
+                    continue
+
                 if i == 0:
                     first_message = ":first_place:"
                 elif i == 1:
@@ -172,7 +158,7 @@ class Tasks(commands.Cog):
                 buttons.append(Button(style=disnake.ButtonStyle.blurple, label="Plus", custom_id="more_ranking"))
             
             buttons.append(Button(style=disnake.ButtonStyle.success, label="Mon classement", custom_id="my_rank_ranking"))
-            buttons.append(Button(style=disnake.ButtonStyle.secondary, label="Classement Mondial", disabled=True))
+            buttons.append(Button(style=disnake.ButtonStyle.secondary, label="Classement Mondial", custom_id="global_ranking"))
             buttons.append(Button(style=disnake.ButtonStyle.url, label="Site EVA.GG", url=f"https://www.eva.gg/fr/calendrier?locationId={city['id']}"))
 
             embeds = [embed1, embed2, embed3, embed4]

@@ -158,7 +158,7 @@ class Eva(commands.Cog):
             await inter.response.defer(with_message=True, ephemeral=False)
 
         embed = disnake.Embed(color=EVA_COLOR, timestamp=functions.getTimeStamp())
-        current_season_id = functions.getCurrentSeasonNumber(self)
+        current_season_id = functions.getCurrentSeasonNumber(self.bot)
 
         user = await functions.getPlayerInfos(self.bot, player, True)
 
@@ -282,7 +282,7 @@ class Eva(commands.Cog):
 
     @commands.user_command(name="stats")
     async def stats_user(self, inter: disnake.ApplicationCommandInteraction, member: disnake.User):
-        await self.stats(inter, player=member, saison=functions.getCurrentSeasonNumber(self), private = "Yes")
+        await self.stats(inter, player=member, saison=functions.getCurrentSeasonNumber(self.bot), private = "Yes")
 
     @commands.user_command(name="lastgame")
     async def lastgame_user(self, inter: disnake.ApplicationCommandInteraction, member: disnake.User):
