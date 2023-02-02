@@ -69,7 +69,6 @@ class Eva(commands.Cog):
                                         stats_player["player"]["statistics"]["data"][n] = max(d, data)
                                     else:
                                         stats_player["player"]["statistics"]["data"][n] = d + data
-                        print(self.bot.get_cog("Variables").seasons_list)
                         stats_player["player"]["statistics"]["data"]["killsByDeaths"] = stats_player["player"]["statistics"]["data"]["killsByDeaths"] / len(self.bot.get_cog("Variables").seasons_list)
 
             else:
@@ -128,7 +127,7 @@ class Eva(commands.Cog):
 
     @stats.autocomplete("saison")
     async def saison_autocomplete(self, inter: disnake.ApplicationCommandInteraction, saison: str):
-        seasons_list = [str(season["seasonNumber"]) for season in self.bot.get_cog("Variables").seasons_list]
+        seasons_list = [str(season["seasonNumber"]) for season in sorted(self.bot.get_cog("Variables").seasons_list, key=lambda x: x["seasonNumber"], reverse=True)]
         seasons_list.append("Total")
         return seasons_list
 
