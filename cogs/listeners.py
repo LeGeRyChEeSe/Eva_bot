@@ -1067,25 +1067,8 @@ class Listeners(commands.Cog):
             select_options = []
 
             for stat in players[0]["player_stats"].keys():
-                reverse = True
-
-                if stat in ["bestInflictedDamage", "killDeathRatio", "gameDrawCount"]:
-                    continue
-
-                elif stat in ["deaths", "gameDefeatCount"]:
-                    reverse = False
-                
-                if stat == "experience":
-                    players.sort(key=lambda x: x["player_infos"]["experience"][stat] or 0, reverse=reverse)
-                else:
-                    players.sort(key=lambda x: x["player_stats"][stat] or 0, reverse=reverse)
-                select_options.append(SelectOption(label=STATS[stat], value=stat, description=f"Voir le classement mondial par {STATS[stat]}"))
-
-                for i in range(len(players)):
-                    try:
-                        players[i]["rank"] += i + 1
-                    except:
-                        players[i]["rank"] = 0
+                if stat not in ["bestInflictedDamage", "killDeathRatio", "gameDrawCount"]:
+                    select_options.append(SelectOption(label=STATS[stat], value=stat, description=f"Voir le classement mondial par {STATS[stat]}"))
 
             players.sort(key=lambda x: x["rank"])
 
