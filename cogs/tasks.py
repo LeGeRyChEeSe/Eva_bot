@@ -48,6 +48,7 @@ class Tasks(commands.Cog):
         current_season_to = format_dt(datetime.datetime.fromisoformat(current_season['to']))
         current_season_to_R = format_dt(datetime.datetime.fromisoformat(current_season['to']), "R")
         all_players: typing.List[typing.Dict[typing.Dict, typing.Dict]] = await functions.getAllPlayersInfos(self.bot, self.bot.pool)
+        all_players_unformated = copy.deepcopy(all_players)
 
         for stat in all_players[0]["player_stats"].keys():
             reverse = True
@@ -100,7 +101,7 @@ class Tasks(commands.Cog):
             buttons = []
             city_id = [record["city_id"] for record in best_players_ranking_channels_id if record["guild_id"] == guild.id][0]
             city = functions.getCityfromDict(cities, city_id=city_id)
-            players = [copy.deepcopy(player_list) for player_list in all_players if guild.get_member(player_list["player_infos"]["memberId"])]
+            players = [copy.deepcopy(player_list) for player_list in all_players_unformated if guild.get_member(player_list["player_infos"]["memberId"])]
 
             if not channel.permissions_for(guild.me).send_messages or not channel.permissions_for(guild.me).embed_links or not city:
                 continue
