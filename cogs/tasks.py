@@ -48,7 +48,28 @@ class Tasks(commands.Cog):
         current_season_to = format_dt(datetime.datetime.fromisoformat(current_season['to']))
         current_season_to_R = format_dt(datetime.datetime.fromisoformat(current_season['to']), "R")
         all_players: typing.List[typing.Dict[typing.Dict, typing.Dict]] = await functions.getAllPlayersInfos(self.bot, self.bot.pool)
-        self.bot.get_cog("Variables").guilds_ranking["all_players"] = all_players
+
+        for stat in all_players[0]["player_stats"].keys():
+            reverse = True
+
+            if stat in ["bestInflictedDamage", "killDeathRatio", "gameDrawCount"]:
+                continue
+
+            elif stat in ["deaths", "gameDefeatCount"]:
+                reverse = False
+            
+            if stat == "experience":
+                all_players.sort(key=lambda x: x["player_infos"]["experience"][stat] or 0, reverse=reverse)
+            else:
+                all_players.sort(key=lambda x: x["player_stats"][stat] or 0, reverse=reverse)
+
+            for i in range(len(all_players)):
+                try:
+                    all_players[i]["rank"] += i + 1
+                except:
+                    all_players[i]["rank"] = 0
+
+        self.bot.get_cog("Variables").guilds_ranking["all_players"] = copy.deepcopy(all_players)
         cities = functions.getCities(self)
         best_players_ranking_channels = []
 
