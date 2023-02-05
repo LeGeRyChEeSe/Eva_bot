@@ -654,7 +654,6 @@ async def getPlayerInfos(bot: commands.InteractionBot, player: disnake.User or d
         """, player.id)
     
       if user:
-        print("b")
         if updatePlayer:
           await updatePlayerInfos(bot.pool, user[0])
           user = await con.fetch("""

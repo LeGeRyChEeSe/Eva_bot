@@ -4,7 +4,7 @@ from utils.errors import *
 from disnake import Localized
 from disnake.ext import commands
 from disnake.ext.commands import errors as commandsErrors
-from disnake.ui import TextInput
+from disnake.ui import TextInput, Button
 import utils.functions as functions
 from utils.constants import *
 
@@ -114,15 +114,9 @@ class Eva(commands.Cog):
             if stats_player['traveledDistance']:
                 embed.add_field(name=functions.getLocalization(self.bot, "STATS_EMBED_TOTAL_DISTANCE_TRAVELLED", inter.locale), value=functions.getLocalization(self.bot, "STATS_EMBED_TOTAL_DISTANCE_TRAVELLED_VALUE", inter.locale, traveledDistance=round(stats_player['traveledDistance'])), inline=True)
         else:
-            embed.title = functions.getLocalization(self.bot, "NOT_LINKED_EMBED_TITLE", inter.locale, displayName=player.display_name)
-            embed.description = functions.getLocalization(self.bot, "NOT_LINKED_EMBED_DESCRIPTION", inter.locale, playerMention=player.mention, commandName=functions.getLocalization(self.bot, 'LINK_NAME', inter.locale), clientMention=inter.guild.me.mention)
-            player_embed = disnake.Embed(title=functions.getLocalization(self.bot, "NOT_LINKED_PLAYER_EMBED_TITLE", inter.locale), color=EVA_COLOR, timestamp=functions.getTimeStamp())
-            player_embed.set_author(name=player.display_name, icon_url=player.display_avatar.url)
-            player_embed.set_thumbnail(url=self.bot.user.display_avatar.url)
-            player_embed.description = functions.getLocalization(self.bot, "NOT_LINKED_PLAYER_EMBED_DESCRIPTION", inter.locale, playerMention=inter.author.mention, commandName=functions.getLocalization(self.bot, 'LINK_NAME', inter.locale))
-            await player.send(embed=player_embed)
+            raise UserNotLinked("L'utilisateur n'a pas associé son compte EVA.")
         
-        await inter.followup.send(embed=embed)
+        await inter.edit_original_response(embed=embed, components=[Button(style=disnake.ButtonStyle.danger, label="Associer compte EVA", custom_id="link_button", emoji="🪢")])
 
     @stats.autocomplete("saison")
     async def saison_autocomplete(self, inter: disnake.ApplicationCommandInteraction, saison: str):
@@ -170,15 +164,13 @@ class Eva(commands.Cog):
                 embed.title = f"{position}e partie la plus récente"
                 embed.url = f"https://www.eva.gg/fr/profile/public/{user['player_username']}/history/{last_game['id']}"
                 embed.set_image(file=disnake.File(f"assets/Images/tmp/{scoreboard_path}"))
-                await inter.followup.send(embed=embed)
                 os.remove(f"assets/Images/tmp/{scoreboard_path}")
             else:
                 embed.title = "Aucune partie récente"
         else:
             raise UserNotLinked("L'utilisateur n'a pas associé son compte EVA.")
         
-        
-        await inter.edit_original_response(embed=embed)
+        await inter.edit_original_response(embed=embed, components=[Button(style=disnake.ButtonStyle.danger, label="Associer compte EVA", custom_id="link_button", emoji="🪢")])
     
     @commands.slash_command(name="link")
     async def link(self, inter: disnake.ApplicationCommandInteraction):
@@ -235,7 +227,6 @@ class Eva(commands.Cog):
 
     @lastgame_user.error
     async def lastgame_user_error(self, inter: disnake.ApplicationCommandInteraction, error: commands.CommandError):
-        print(inter.filled_options)
         await self.lastgame_error(inter, error)
 
     @link.error
