@@ -34,7 +34,6 @@ class Admin(commands.Cog):
 
     @commands.slash_command(name="setup")
     @commands.default_member_permissions(manage_guild=True)
-    #@commands.check(lambda x: x.author.id == 440141443877830656)
     async def _setup(self, inter: disnake.ApplicationCommandInteraction, ville: str, create_command_channel: str = commands.Param("No", choices=[Localized("No", key="BOOL_NO"), Localized("Yes", key="BOOL_YES")])):
         """
             Configurez tous les paramètres du bot ! (A n'éxécuter qu'une fois à l'arrivée du bot)

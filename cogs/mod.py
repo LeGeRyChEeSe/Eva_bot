@@ -157,6 +157,8 @@ class Mod(commands.Cog):
                 except ValueError:
                     await inter.followup.send("Le nombre max a été atteint !")
                     return
+                except:
+                    raise
                 else:
                     if component.custom_id == "multiple_roles":
                         component.max_values += len(component.options) - 1

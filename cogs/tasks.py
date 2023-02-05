@@ -91,6 +91,8 @@ class Tasks(commands.Cog):
                         SET best_players_ranking_channel_id = NULL
                         WHERE global_config.best_players_ranking_channel_id = $1
                         """, record["best_players_ranking_channel_id"])
+                except:
+                    raise
                 else:
                     best_players_ranking_channels.append(channel)
 
@@ -182,6 +184,7 @@ class Tasks(commands.Cog):
             buttons.append(Button(style=disnake.ButtonStyle.success, label="Mon classement", custom_id="my_rank_ranking"))
             buttons.append(Button(style=disnake.ButtonStyle.secondary, label="Classement Mondial", custom_id="global_ranking"))
             buttons.append(Button(style=disnake.ButtonStyle.url, label="Site EVA.GG", url=f"https://www.eva.gg/fr/calendrier?locationId={city['id']}"))
+            buttons.append(Button(style=disnake.ButtonStyle.danger, label="Associer compte EVA", custom_id="link_button", emoji="🪢"))
 
             embeds = [embed1, embed2, embed3, embed4]
 
@@ -220,6 +223,8 @@ class Tasks(commands.Cog):
                                 deadline = datetime.datetime.fromtimestamp(int(re.search("[0-9]+", message.embeds[0].description).group()))
                             except ValueError:
                                 pass
+                            except:
+                                raise
                             else:
                                 actual_time = functions.getTimeStamp()
                                 if deadline < actual_time:
@@ -228,6 +233,8 @@ class Tasks(commands.Cog):
                             deadline = datetime.datetime.fromtimestamp(int(re.search("[0-9]+", message.embeds[0].fields[1].value).group()))
                         except ValueError:
                             pass
+                        except:
+                            raise
                         else:
                             extend_deadline = deadline + datetime.timedelta(minutes=40)
                             actual_time = functions.getTimeStamp()
@@ -270,6 +277,8 @@ class Tasks(commands.Cog):
                             players_list = None
                         except IndexError:
                             players_list = None
+                        except:
+                            raise
                         else:
                             players_list = ", ".join(players_list)
 
@@ -277,6 +286,8 @@ class Tasks(commands.Cog):
                             deadline = datetime.datetime.fromtimestamp(int(re.search("[0-9]+", message.embeds[0].fields[1].value).group()))
                         except ValueError:
                             pass
+                        except:
+                            raise
                         else:
                             alert_deadline = deadline - datetime.timedelta(minutes=40)
                             actual_time = functions.getTimeStamp()
@@ -357,9 +368,11 @@ class Tasks(commands.Cog):
                                 }), description=f"{day['startTime']} ➡️ {day['endTime']}"))
 
                             select = Select(placeholder="Choisir un horaire", options=select_options, custom_id="reservation")
-                            button = Button(style=disnake.ButtonStyle.url, label="Réserver sur EVA.GG", url=f"https://www.eva.gg/fr/calendrier?locationId={city['id']}&gameId=1&currentDate={v.strftime('%Y-%m-%d')}")
+                            buttons = []
+                            buttons.append(Button(style=disnake.ButtonStyle.url, label="Réserver sur EVA.GG", url=f"https://www.eva.gg/fr/calendrier?locationId={city['id']}&gameId=1&currentDate={v.strftime('%Y-%m-%d')}"))
+                            buttons.append(Button(style=disnake.ButtonStyle.danger, label="Associer compte EVA", custom_id="link_button", emoji="🪢"))
                             
-                            await resa_channel.create_thread(name=f"{v.strftime('%A %d %B %Y')}", applied_tags=[tag], embed=forum_embed, components=[button, select])
+                            await resa_channel.create_thread(name=f"{v.strftime('%A %d %B %Y')}", applied_tags=[tag], embed=forum_embed, components=[buttons, select])
                             next_day = True
                             await thread.delete()
                             break

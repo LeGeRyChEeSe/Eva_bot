@@ -2,14 +2,16 @@ import copy
 import json
 import logging
 from math import ceil
+import re
 from typing import List
 import typing
 import disnake
-from disnake import SelectOption, errors
+from disnake import SelectOption
 from disnake.ext import commands
 from disnake.ext.commands import errors as commandsErrors
-from disnake.ui import Button, Select, ActionRow
+from disnake.ui import Button, Select, ActionRow, TextInput
 from disnake.utils import format_dt
+from utils.errors import *
 import traceback
 from utils.constants import *
 import utils.functions as functions
@@ -67,7 +69,85 @@ class Listeners(commands.Cog):
     async def on_member_join(self, member: disnake.Member):
         channel = member.guild.system_channel
         if channel is not None:
-            await channel.send(f'Bienvenue {member.mention} chez {member.guild.name}!')
+            embed = disnake.Embed(title=f"Bienvenue {member.display_name} !", timestamp=functions.getTimeStamp(), color=EVA_COLOR)
+            embed.set_thumbnail(member.display_avatar)
+            embed.description = f"Bienvenue {member.mention} chez **{member.guild.name}**!\nPense à lier ton compte EVA à ton compte Discord si ce n'est pas déjà fait __**via le bouton ci-dessous**__, ou à tout autre moment via la commande `/link`!\nLe fait de lier ton compte EVA à ton compte Discord te permettra d'utiliser toutes les commandes d'{self.bot.user.mention} comme `/help` par exemple."
+            await channel.send(embed=embed, components=[Button(style=disnake.ButtonStyle.danger, label="Associer compte EVA", custom_id="link_button", emoji="🪢")])
+
+    @commands.Cog.listener()
+    async def on_modal_submit(self, inter: disnake.ModalInteraction):
+        """
+            Fonction appelée lors de l'interaction avec un modal.
+
+            Paramètres
+            ----------
+            inter: :class:`disnake.ModalInteraction`
+                L'interaction avec le modal.
+        """
+        await inter.response.defer(with_message=True, ephemeral=True)
+        custom_id = inter.custom_id
+        embed = disnake.Embed(timestamp=functions.getTimeStamp(), color=EVA_COLOR)
+
+        if custom_id == "link_modal":
+            embed.title = "Association de votre compte EVA"
+            embed.description = ""
+            eva_username = ""
+            player = None
+            twitch_username = ""
+
+            for text_custom_id, text_value in inter.text_values.items():
+                if text_value:
+                    if text_custom_id == "link_eva":
+                        eva_username = re.search(".+#[0-9]{5}", text_value)
+                        if eva_username:
+                            try:
+                                player = await functions.getProfile(eva_username.string)
+                            except UserNotFound:
+                                embed.description += f":x:** - Compte EVA `{eva_username.string}` non associé, le compte n'existe pas.**\n"
+                            else:
+                                embed.description += f":white_check_mark:** - Compte EVA `{eva_username.string}` correctement associé.**\n"
+                        else:
+                            embed.description += f":x:** - Compte EVA `{text_value}` non associé, veuillez indiquer le # et le numéro qui suit votre pseudo.**\n"
+
+                    if text_custom_id == "link_twitch":
+                        twitch_username = text_value
+                        embed.description += f":white_check_mark:** - Compte Twitch `{twitch_username}` correctement associé.**\n"
+                
+            if player and not twitch_username:
+                async with self.bot.pool.acquire() as con:
+                    await con.execute("""
+                    INSERT INTO players(user_id, player_id, player_username, player_displayname)
+                    VALUES($1, $2, $3, $4)
+                    ON CONFLICT (user_id)
+                    DO UPDATE
+                    SET player_id = $2, player_username = $3, player_displayname = $4
+                    WHERE players.user_id = $1
+                    """, inter.author.id, player["player"]["userId"], player["player"]["username"], player["player"]["displayName"])
+            
+            elif not player and twitch_username:
+                async with self.bot.pool.acquire() as con:
+                    await con.execute("""
+                    INSERT INTO players(user_id, twitch_username)
+                    VALUES($1, $2)
+                    ON CONFLICT (user_id)
+                    DO UPDATE
+                    SET twitch_username = $2
+                    WHERE players.user_id = $1
+                    """, inter.author.id, twitch_username.lower())
+            
+            elif player and twitch_username:
+                async with self.bot.pool.acquire() as con:
+                    await con.execute("""
+                    INSERT INTO players(user_id, player_id, player_username, player_displayname, twitch_username)
+                    VALUES($1, $2, $3, $4, $5)
+                    ON CONFLICT (user_id)
+                    DO UPDATE
+                    SET player_id = $2, player_username = $3, player_displayname = $4, twitch_username = $5
+                    WHERE players.user_id = $1
+                    """, inter.author.id, player["player"]["userId"], player["player"]["username"], player["player"]["displayName"], inter.text_values["link_twitch"])
+        
+        await inter.edit_original_response(embed=embed)
+
 
     @commands.Cog.listener()
     async def on_dropdown(self, inter: disnake.MessageInteraction):
@@ -915,6 +995,8 @@ class Listeners(commands.Cog):
             except IndexError:
                 city = inter.message.embeds[0].author.name.split("EVA")[1].split("(")[0].strip()
                 players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking[inter.guild_id])
+            except:
+                raise
             else:
                 if not city:
                     players = copy.deepcopy(self.bot.get_cog("Variables").guilds_ranking["all_players"])
@@ -1113,6 +1195,9 @@ class Listeners(commands.Cog):
             
             await inter.followup.send(embed=embed, components=[buttons, bottom_button, select], ephemeral=True)
 
+        elif custom_id == "link_button":
+            await inter.response.send_modal(title="Associer son compte EVA", custom_id="link_modal", components=[TextInput(label="Compte EVA", custom_id="link_eva", style=disnake.TextInputStyle.single_line, placeholder="Entrez votre pseudo EVA complet", required=False, min_length=7, max_length=26), TextInput(label="Compte Twitch (optionnel)", custom_id="link_twitch", style=disnake.TextInputStyle.single_line, placeholder="Entrez votre pseudo Twitch (optionnel)", required=False, min_length=4 ,max_length=25)])
+
     @commands.Cog.listener()
     async def on_slash_command_error(self, inter: disnake.ApplicationCommandInteraction, error: commands.CommandError):
         """
@@ -1140,19 +1225,12 @@ class Listeners(commands.Cog):
         if isinstance(error, commands.CommandInvokeError):
             original = error.original
             error_formated = "".join(traceback.format_exception(type(original), original, original.__traceback__))
-            
-            if isinstance(original, errors.HTTPException):
-                embed.description = "Je ne peux pas envoyer de messages privés à cet utilisateur ! Il doit autoriser les messages privés provenant des membres du serveur !"
-            elif isinstance(original, TypeError):
+        
+            if isinstance(original, UserNotLinked):
                 if player:
-                    embed.title = f":x: {player.display_name} n'est pas encore relié à Eva"
-                    embed.description = f"L'utilisateur {player.mention} n'a pas de compte Eva relié à Discord.\nIl doit taper la commande `/link` en message privé à {self.bot.user.mention} pour associer son compte.\nUn message privé lui a été envoyé pour qu'il associe son compte."
-                    player_embed = disnake.Embed(title=f"Association de votre compte Eva à Discord")
-                    player_embed.set_author(name=player.display_name, icon_url=player.display_avatar.url)
-                    player_embed.set_thumbnail(url=self.bot.user.display_avatar.url)
-                    player_embed.description = f"{inter.author.mention} vous invite à associer votre compte Eva à votre compte Discord, pour que tout le monde puisse voir l'historique de vos parties ainsi que vos statistiques **publiques** uniquement !\nPour cela rien de plus simple: Tapez ci-dessous la commande `/link` pour associer votre compte!"
-                    await player.send(embed=player_embed)
-                    await inter.send(embed)
+                    embed.title = f":x: Compte EVA de {player.display_name} non associé :x:"
+                    embed.description = f"L'utilisateur {player.mention} n'a pas de compte Eva relié à Discord.\nIl doit taper la commande `/link` pour associer son compte."
+                    inter.send(embed=embed)
                     return
                 else:
                     embed.description = "Une erreur est survenue, elle a bien été signalée."

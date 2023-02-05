@@ -1,11 +1,10 @@
 import os
 import disnake
-import re
-import logging
 from utils.errors import *
 from disnake import Localized
 from disnake.ext import commands
 from disnake.ext.commands import errors as commandsErrors
+from disnake.ui import TextInput
 import utils.functions as functions
 from utils.constants import *
 
@@ -175,126 +174,42 @@ class Eva(commands.Cog):
                 os.remove(f"assets/Images/tmp/{scoreboard_path}")
             else:
                 embed.title = "Aucune partie récente"
-                await inter.followup.send(embed=embed)
         else:
-            embed.title = functions.getLocalization(self.bot, "NOT_LINKED_EMBED_TITLE", inter.locale, displayName=player.display_name)
-            embed.description = functions.getLocalization(self.bot, "NOT_LINKED_EMBED_DESCRIPTION", inter.locale, playerMention=player.mention, commandName=functions.getLocalization(self.bot, 'LINK_NAME', inter.locale), clientMention=self.bot.user.mention)
-            player_embed = disnake.Embed(title=functions.getLocalization(self.bot, "NOT_LINKED_PLAYER_EMBED_TITLE", inter.locale))
-            player_embed.set_author(name=player.display_name, icon_url=player.display_avatar.url)
-            player_embed.set_thumbnail(url=self.bot.user.display_avatar.url)
-            player_embed.description = functions.getLocalization(self.bot, "NOT_LINKED_PLAYER_EMBED_DESCRIPTION", inter.locale, playerMention=inter.author.mention, commandName=functions.getLocalization(self.bot, 'LINK_NAME', inter.locale))
-            await player.send(embed=player_embed)
-            await inter.followup.send(embed=embed)
-
-    @commands.slash_command(name="link", dm_permission=True)
-    @commands.dm_only()
-    async def link(self, inter: disnake.ApplicationCommandInteraction, username: str = None, twitch_username: str = None):
+            raise UserNotLinked("L'utilisateur n'a pas associé son compte EVA.")
+        
+        
+        await inter.edit_original_response(embed=embed)
+    
+    @commands.slash_command(name="link")
+    async def link(self, inter: disnake.ApplicationCommandInteraction):
         """
-        __**⚠️ Important ⚠️**__ Associer son compte Eva à son compte Discord/Twitch. {{LINK}}
-
-        Parameters
-        ----------
-        username: str
-            Votre pseudo Eva du type joueur#12345 récupérable sur le site "eva.gg". {{LINK_USERNAME}}
-        twitch_username: str
-            Votre pseudo Twitch récupérable sur le site \"twitch.tv\". {{LINK_TWITCH_USERNAME}}
+            __**⚠️ Important ⚠️**__ Associer son compte Eva à son compte Discord.
         """
-        embed = disnake.Embed(color=EVA_COLOR, timestamp=functions.getTimeStamp())
-        embed.set_thumbnail(url=self.bot.user.display_avatar.url)
-        embed.set_author(name=inter.author.display_name, icon_url=inter.author.display_avatar.url)
-        
-        if not username and not twitch_username:
-            embed.title = functions.getLocalization(self.bot, "LINK_EMBED_TITLE_1", inter.locale)
-            embed.url = "https://www.eva.gg/fr/profile/dashboard"
-            embed.description = functions.getLocalization(self.bot, "LINK_EMBED_DESCRIPTION_1", inter.locale, commandName=functions.getLocalization(self.bot, "LINK_NAME", inter.locale))
-            return await inter.response.send_message(embed=embed)
-
-        elif username:
-            username = re.search(".+#[0-9]{5}", username)
-            if not username:
-                    embed.title = functions.getLocalization(self.bot, "LINK_EMBED_TITLE_2", inter.locale)
-                    embed.description = functions.getLocalization(self.bot, "LINK_EMBED_DESCRIPTION_2", inter.locale, commandName=functions.getLocalization(self.bot, "LINK_NAME", inter.locale))
-                    await inter.response.send_message(embed=embed)
-                    return
-            try:
-                player = await functions.getProfile(username.string)
-            except BaseException as e:
-                logging.exception(e)
-                embed.description = functions.getLocalization(self.bot, "LINK_EMBED_DESCRIPTION_3", inter.locale)
-                await inter.response.send_message(embed=embed)
-                return
-
-        embed.title = functions.getLocalization(self.bot, "LINK_EMBED_TITLE_3", inter.locale)
-        
-        if username and not twitch_username:
-            try:
-                async with self.bot.pool.acquire() as con:
-                    await con.execute("""
-                    INSERT INTO players(user_id, player_id, player_username, player_displayname)
-                    VALUES($1, $2, $3, $4)
-                    ON CONFLICT (user_id)
-                    DO UPDATE
-                    SET player_id = $2, player_username = $3, player_displayname = $4
-                    WHERE players.user_id = $1
-                    """, inter.author.id, player["player"]["userId"], player["player"]["username"], player["player"]["displayName"])
-            except BaseException as e:
-                embed.description = functions.getLocalization(self.bot, "LINK_EMBED_DESCRIPTION_4", inter.locale)
-                logging.exception(e)
-            else:
-                embed.description = functions.getLocalization(self.bot, "LINK_EMBED_DESCRIPTION_5", inter.locale)
-        
-        elif not username and twitch_username:
-            try:
-                async with self.bot.pool.acquire() as con:
-                    await con.execute("""
-                    INSERT INTO players(user_id, twitch_username)
-                    VALUES($1, $2)
-                    ON CONFLICT (user_id)
-                    DO UPDATE
-                    SET twitch_username = $2
-                    WHERE players.user_id = $1
-                    """, inter.author.id, twitch_username.lower())
-            except BaseException as e:
-                embed.description = functions.getLocalization(self.bot, "LINK_EMBED_DESCRIPTION_6", inter.locale)
-                logging.exception(e)
-            else:
-                embed.description = functions.getLocalization(self.bot, "LINK_EMBED_DESCRIPTION_5", inter.locale)
-        
-        else:
-            try:
-                async with self.bot.pool.acquire() as con:
-                    await con.execute("""
-                    INSERT INTO players(user_id, player_id, player_username, player_displayname, twitch_username)
-                    VALUES($1, $2, $3, $4, $5)
-                    ON CONFLICT (user_id)
-                    DO UPDATE
-                    SET player_id = $2, player_username = $3, player_displayname = $4, twitch_username = $5
-                    WHERE players.user_id = $1
-                    """, inter.author.id, player["player"]["userId"], player["player"]["username"], player["player"]["displayName"], twitch_username.lower())
-            except BaseException as e:
-                embed.description = functions.getLocalization(self.bot, "LINK_EMBED_DESCRIPTION_7", inter.locale)
-                logging.exception(e)
-            else:
-                embed.description = functions.getLocalization(self.bot, "LINK_EMBED_DESCRIPTION_5", inter.locale)
-            
-        await inter.response.send_message(embed=embed)
+        await inter.response.send_modal(title="Associer son compte EVA", custom_id="link_modal", components=[TextInput(label="Compte EVA", custom_id="link_eva", style=disnake.TextInputStyle.single_line, placeholder="Entrez votre pseudo EVA complet", required=False, min_length=7, max_length=26), TextInput(label="Compte Twitch (optionnel)", custom_id="link_twitch", style=disnake.TextInputStyle.single_line, placeholder="Entrez votre pseudo Twitch (optionnel)", required=False, min_length=4 ,max_length=25)])
 
     @commands.user_command(name="stats")
-    async def stats_user(self, inter: disnake.ApplicationCommandInteraction, member: disnake.User):
-        await self.stats(inter, player=member, saison=functions.getCurrentSeasonNumber(self.bot), private = "Yes")
+    async def stats_user(self, inter: disnake.ApplicationCommandInteraction, player: disnake.User):
+        await self.stats(inter, player=player, saison=functions.getCurrentSeasonNumber(self.bot), private = "Yes")
 
     @commands.user_command(name="lastgame")
-    async def lastgame_user(self, inter: disnake.ApplicationCommandInteraction, member: disnake.User):
-        await self.lastgame(inter, player=member, position=1, private="Yes")
+    async def lastgame_user(self, inter: disnake.ApplicationCommandInteraction, player: disnake.User):
+        await self.lastgame(inter, player=player, position=1, private="Yes")
 
     @stats.error
     async def stats_error(self, inter: disnake.ApplicationCommandInteraction, error: commands.CommandError):
         """
             Gestionnaire d'erreur spécifique de la commande :meth:`stats`
         """
+        params = inter.filled_options
         if isinstance(error, commandsErrors.CommandInvokeError):
             if isinstance(error.original, UserIsPrivate):
                 await functions.send_error(inter, error.original.args[0])
+            elif isinstance(error.original, UserNotLinked):
+                user: disnake.User = params['player']
+                embed = disnake.Embed(color=EVA_COLOR, timestamp=functions.getTimeStamp())
+                embed.title = f":x: Compte EVA de {user.display_name} non associé :x:"
+                embed.description = f"L'utilisateur {user.mention} n'a pas de compte Eva relié à Discord.\nIl doit taper la commande `/link` pour associer son compte."
+                await inter.send(embed=embed)
     
     @stats_user.error
     async def stats_user_error(self, inter: disnake.ApplicationCommandInteraction, error: commands.CommandError):
@@ -309,11 +224,18 @@ class Eva(commands.Cog):
         if isinstance(error, commands.CommandInvokeError):
             if isinstance(error.original, UserIsPrivate):
                 await functions.send_error(inter, error.original.args[0])
-            if isinstance(error.original, IndexError):
+            elif isinstance(error.original, IndexError):
                 await functions.send_error(inter, f"{params['player'].mention} n'a pas joué {params['position']} parties !")
+            elif isinstance(error.original, UserNotLinked):
+                user: disnake.User = params['player']
+                embed = disnake.Embed(color=EVA_COLOR, timestamp=functions.getTimeStamp())
+                embed.title = f":x: Compte EVA de {user.display_name} non associé :x:"
+                embed.description = f"L'utilisateur {user.mention} n'a pas de compte Eva relié à Discord.\nIl doit taper la commande `/link` pour associer son compte."
+                await inter.send(embed=embed)
 
     @lastgame_user.error
     async def lastgame_user_error(self, inter: disnake.ApplicationCommandInteraction, error: commands.CommandError):
+        print(inter.filled_options)
         await self.lastgame_error(inter, error)
 
     @link.error

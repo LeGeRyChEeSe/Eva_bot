@@ -33,7 +33,7 @@ async def setGuildsResaChannels(pool: asyncpg.Pool):
   return resa_channels
 
 async def send_error(inter: disnake.ApplicationCommandInteraction, content: str = None) -> None:
-  embed = disnake.Embed(title="Une erreur est survenue", description=content,color=disnake.Color.red(), timestamp=getTimeStamp())
+  embed = disnake.Embed(title="Une erreur est survenue", description=content, color=disnake.Color.red(), timestamp=getTimeStamp())
   await inter.edit_original_response(embed=embed)
 
 # Fonctions synchrones
@@ -477,10 +477,15 @@ async def getStats(userId: int, seasonId: int) -> Tuple[Dict, Dict]:
       try:
         player_result = await session.execute(player_query, variable_values=params)
       except TransportQueryError as e:
-        if e.errors and e.errors[0]["message"] == 'User profile is private':
-          raise UserIsPrivate("Le profil Eva de l'utilisateur est définis sur privé ! Il doit être public.") from None
-        else:
-          raise
+        if e.errors:
+          if e.errors[0]["message"] == 'User profile is private':
+            raise UserIsPrivate("Le profil Eva de l'utilisateur est définis sur privé ! Il doit être public.") from None
+          elif e.errors[0]["message"] == "User not found":
+            raise UserNotFound("Le joueur Eva n'existe pas.") from None
+          else:
+            raise
+      except:
+        raise
 
       # Stats Query
       stats_query = gql("""
@@ -514,10 +519,15 @@ async def getStats(userId: int, seasonId: int) -> Tuple[Dict, Dict]:
       try:
         stats_result = await session.execute(stats_query, variable_values=params)
       except TransportQueryError as e:
-        if e.errors and e.errors[0]["message"] == 'User profile is private':
-          raise UserIsPrivate("Le profil Eva de l'utilisateur est définis sur privé ! Il doit être public.") from None
-        else:
-          raise
+        if e.errors:
+          if e.errors[0]["message"] == 'User profile is private':
+            raise UserIsPrivate("Le profil Eva de l'utilisateur est définis sur privé ! Il doit être public.") from None
+          elif e.errors[0]["message"] == "User not found":
+            raise UserNotFound("Le joueur Eva n'existe pas.") from None
+          else:
+            raise
+      except:
+        raise
 
       return player_result, stats_result
 
@@ -582,10 +592,15 @@ async def getProfile(username: str) -> Dict:
       try:
         result = await session.execute(query, variable_values=params)
       except TransportQueryError as e:
-        if e.errors and e.errors[0]["message"] == 'User profile is private':
-          raise UserIsPrivate("Le profil Eva de l'utilisateur est définis sur privé ! Il doit être public.") from None
-        else:
-          raise
+        if e.errors:
+          if e.errors[0]["message"] == 'User profile is private':
+            raise UserIsPrivate("Le profil Eva de l'utilisateur est définis sur privé ! Il doit être public.") from None
+          elif e.errors[0]["message"] == "User not found":
+            raise UserNotFound("Le joueur Eva n'existe pas.") from None
+          else:
+            raise
+      except:
+        raise
 
       return result
 
@@ -604,6 +619,8 @@ async def getAllPlayersInfos(bot: commands.InteractionBot, pool: asyncpg.Pool) -
       player_infos, player_stats = await getStats(player["player_id"], current_season_number)
     except UserIsPrivate:
       continue
+    except:
+      raise
     else:
       player_infos["player"]["memberId"] = player["user_id"]
       all_players.append({"player_infos": player_infos["player"], "player_stats": player_stats["player"]["statistics"]["data"]})
@@ -637,6 +654,7 @@ async def getPlayerInfos(bot: commands.InteractionBot, player: disnake.User or d
         """, player.id)
     
       if user:
+        print("b")
         if updatePlayer:
           await updatePlayerInfos(bot.pool, user[0])
           user = await con.fetch("""
@@ -690,10 +708,15 @@ async def updatePlayerInfos(pool: asyncpg.Pool, playerInfos: asyncpg.Record) -> 
       try:
         result = await session.execute(query, variable_values=params)
       except TransportQueryError as e:
-        if e.errors and e.errors[0]["message"] == 'User profile is private':
-          raise UserIsPrivate("Le profil Eva de l'utilisateur est définis sur privé ! Il doit être public.") from None
-        else:
-          raise
+        if e.errors:
+          if e.errors[0]["message"] == 'User profile is private':
+            raise UserIsPrivate("Le profil Eva de l'utilisateur est définis sur privé ! Il doit être public.") from None
+          elif e.errors[0]["message"] == "User not found":
+            raise UserNotFound("Le joueur Eva n'existe pas.") from None
+          else:
+            raise
+      except:
+        raise
       
       if result:
         if result["player"]["username"] == playerInfos.get("player_username"):
@@ -775,10 +798,15 @@ async def getLastGame(userId: int, seasonId: int, gameId: int = 1) -> Dict:
     try:
       result = await session.execute(query, variable_values=params)
     except TransportQueryError as e:
-        if e.errors and e.errors[0]["message"] == 'User profile is private':
-          raise UserIsPrivate("Le profil Eva de l'utilisateur est définis sur privé ! Il doit être public.") from None
-        else:
-          raise
+        if e.errors:
+          if e.errors[0]["message"] == 'User profile is private':
+            raise UserIsPrivate("Le profil Eva de l'utilisateur est définis sur privé ! Il doit être public.") from None
+          elif e.errors[0]["message"] == "User not found":
+            raise UserNotFound("Le joueur Eva n'existe pas.") from None
+          else:
+            raise
+    except:
+      raise
 
     if result["gameHistories"]["nodes"]:
       return result["gameHistories"]["nodes"][gameId - 1]
