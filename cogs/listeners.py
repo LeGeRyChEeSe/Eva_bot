@@ -84,11 +84,11 @@ class Listeners(commands.Cog):
             inter: :class:`disnake.ModalInteraction`
                 L'interaction avec le modal.
         """
-        await inter.response.defer(with_message=True, ephemeral=True)
         custom_id = inter.custom_id
-        embed = disnake.Embed(timestamp=functions.getTimeStamp(), color=EVA_COLOR)
 
         if custom_id == "link_modal":
+            await inter.response.defer(with_message=True, ephemeral=True)
+            embed = disnake.Embed(timestamp=functions.getTimeStamp(), color=EVA_COLOR)
             embed.title = "Association de votre compte EVA"
             embed.description = ""
             eva_username = ""
@@ -145,8 +145,41 @@ class Listeners(commands.Cog):
                     SET player_id = $2, player_username = $3, player_displayname = $4, twitch_username = $5
                     WHERE players.user_id = $1
                     """, inter.author.id, player["player"]["userId"], player["player"]["username"], player["player"]["displayName"], inter.text_values["link_twitch"])
-        
-        await inter.edit_original_response(embed=embed)
+
+            await inter.edit_original_response(embed=embed)
+
+        elif custom_id == "response_sondage":
+            await inter.response.defer(with_message=False, ephemeral=True)
+            embed = inter.message.embeds[0]
+            components = []
+            rows = ActionRow.rows_from_message(inter.message)
+            response_text = inter.text_values["text_response_sondage"]
+            has_string_select_component = False
+            sondages: typing.Dict = self.bot.get_cog("Variables").sondages
+
+            if not inter.message.id in sondages.keys():
+                sondages[inter.message.id] = {}
+
+            if not embed.description:
+                embed.description = ""
+            
+            for _, component in ActionRow.walk_components(rows):
+                if component.type == disnake.ComponentType.button:
+                    components.append(component)
+                elif component.type == disnake.ComponentType.string_select:
+                    has_string_select_component = True
+            
+            if not has_string_select_component:
+                components.append(disnake.ui.StringSelect(custom_id="sondage_select", placeholder="Choisissez votre réponse au sondage", options=[SelectOption(label=response_text)]))
+            else:
+                for _, component in ActionRow.walk_components(rows):
+                    if component.type == disnake.ComponentType.string_select:
+                        component.add_option(label=response_text)
+                        components.append(component)
+
+            embed.description += f"\n`{inter.text_values['text_response_sondage']}`: 0"
+
+            await inter.message.edit(embed=embed, components=components)
 
 
     @commands.Cog.listener()
@@ -159,7 +192,6 @@ class Listeners(commands.Cog):
             inter: :class:`disnake.MessageInteraction`
                 L'interaction avec le message.
         """
-        await inter.response.defer(with_message=True, ephemeral=True)
         custom_id = inter.component.custom_id
         
         embed = disnake.Embed(timestamp=functions.getTimeStamp(), color=EVA_COLOR)
@@ -194,6 +226,7 @@ class Listeners(commands.Cog):
             await inter.followup.send(embed=embed)
 
         elif custom_id == "multiple_roles":
+            await inter.response.defer(with_message=True, ephemeral=True)
             roles_id = [int(v) for v in inter.values]
             roles = [inter.guild.get_role(r) for r in roles_id]
 
@@ -214,9 +247,10 @@ class Listeners(commands.Cog):
             for role in roles:
                 await inter.author.add_roles(role)
             
-            await inter.followup.send(embed=embed)
+            await inter.edit_original_response(embed=embed)
 
         elif custom_id == "other_ranking":
+            await inter.response.defer(with_message=True, ephemeral=True)
             embed = disnake.Embed(color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
             selections = inter.values
 
@@ -328,10 +362,10 @@ class Listeners(commands.Cog):
             
             bottom_button = Button(style=disnake.ButtonStyle.success, label="Mon classement", custom_id="my_rank_ranking")
 
-            await inter.followup.send(embed=embed, components=[buttons, bottom_button])
+            await inter.edit_original_response(embed=embed, components=[buttons, bottom_button])
 
         elif custom_id == "reservation":
-            await inter.delete_original_response()
+            await inter.response.defer(with_message=False, ephemeral=True)
             day = json.loads(inter.values[0])
             cities = functions.getCities(self)
             city = functions.getCityfromDict(cities, city_id=day["loc"])
@@ -352,6 +386,37 @@ class Listeners(commands.Cog):
             ]
 
             await inter.channel.send(embed=resa_embed, components=buttons)
+
+        elif custom_id == "sondage_select":
+            await inter.response.defer(with_message=False, ephemeral=True)
+            embed = inter.message.embeds[0]
+            selection = inter.values[0]
+            sondages: typing.Dict = self.bot.get_cog("Variables").sondages
+
+            if not inter.message.id in sondages.keys():
+                sondages[inter.message.id] = {}
+
+            for p in embed.description.splitlines():
+                key, value = p.split(":")
+                key, value = key.strip(), int(value.strip())
+
+                if selection in key:
+                    if inter.author.id in sondages[inter.message.id] and sondages[inter.message.id][inter.author.id] != selection:
+                        old_selection = sondages[inter.message.id][inter.author.id]
+                        for o_p in embed.description.splitlines():
+                            o_key, o_value = o_p.split(":")
+                            o_key, o_value = o_key.strip(), int(o_value.strip())
+
+                            if old_selection in o_key:
+                                o_value -= 1 if o_value > 0 else 0
+                                embed.description = embed.description.replace(o_p, f"{o_key}: {o_value}")
+                    elif inter.author.id in sondages[inter.message.id] and sondages[inter.message.id][inter.author.id] == selection:
+                        continue
+
+                    sondages[inter.message.id][inter.author.id] = selection        
+                    value += 1
+                    embed.description = embed.description.replace(p, f"{key}: {value}")
+            await inter.message.edit(embed=embed)
 
     @commands.Cog.listener("on_button_click")
     async def on_button_click(self, inter: disnake.MessageInteraction):
@@ -1197,6 +1262,22 @@ class Listeners(commands.Cog):
 
         elif custom_id == "link_button":
             await inter.response.send_modal(title="Associer son compte EVA", custom_id="link_modal", components=[TextInput(label="Compte EVA", custom_id="link_eva", style=disnake.TextInputStyle.single_line, placeholder="Entrez votre pseudo EVA complet", required=False, min_length=7, max_length=26), TextInput(label="Compte Twitch (optionnel)", custom_id="link_twitch", style=disnake.TextInputStyle.single_line, placeholder="Entrez votre pseudo Twitch (optionnel)", required=False, min_length=4 ,max_length=25)])
+
+        elif custom_id == f"{inter.author.id}_sondage_button":
+            await inter.response.send_modal(title="Ajout d'une proposition", custom_id="response_sondage", components=TextInput(label="Ajouter une réponse", custom_id="text_response_sondage", placeholder="Ex: Oui"))
+        
+        elif custom_id == f"{inter.author.id}_sondage_clear_button":
+            await inter.response.defer(with_message=False)
+            components = []
+            rows = ActionRow.rows_from_message(inter.message)
+            for row, component in ActionRow.walk_components(rows):
+                if component.type == disnake.ComponentType.button:
+                    row.remove_item(component)
+                else:
+                    components.append(component)
+            
+            await inter.message.edit(components=components)
+            
 
     @commands.Cog.listener()
     async def on_slash_command_error(self, inter: disnake.ApplicationCommandInteraction, error: commands.CommandError):

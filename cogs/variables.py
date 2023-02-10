@@ -7,6 +7,7 @@ class Variables(commands.Cog):
         self.resa_channels = []
         self.seasons_list = []
         self.eva_cities = {}
+        self.sondages = {}
 
 def setup(bot: commands.InteractionBot):
     bot.add_cog(Variables(bot))

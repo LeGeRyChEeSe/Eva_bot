@@ -229,5 +229,20 @@ class Mod(commands.Cog):
             else:
                 await inter.followup.send(f"Le rôle {role.mention} n'est pas présent dans la liste d'affectation des rôles de ce message :point_right: {message.jump_url}\nPar conséquent je n'ai pas pu le supprimer !")
 
+    @commands.slash_command(name="sondage")
+    @commands.default_member_permissions(manage_messages=True)
+    async def sondage(self, inter: disnake.ApplicationCommandInteraction, question: str):
+        await inter.response.defer(with_message=False)
+        
+        embed = disnake.Embed(title=question, color=disnake.Color.from_rgb(*PERFECT_GREY))
+        embed.set_author(name=f"Sondage de {inter.author.display_name}", icon_url=inter.author.display_avatar)
+
+        buttons = []
+        buttons.append(Button(style=disnake.ButtonStyle.secondary, label="Ajouter des réponses", custom_id=f"{inter.author.id}_sondage_button"))
+        buttons.append(Button(style=disnake.ButtonStyle.danger, label="J'ai ajouté toutes les réponses que je voulais", custom_id=f"{inter.author.id}_sondage_clear_button"))
+
+        await inter.delete_original_response()
+        await inter.channel.send(embed=embed, components=buttons)
+
 def setup(bot: commands.InteractionBot):
     bot.add_cog(Mod(bot))
