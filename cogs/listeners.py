@@ -101,7 +101,7 @@ class Listeners(commands.Cog):
                         eva_username = re.search(".+#[0-9]{5}", text_value)
                         if eva_username:
                             try:
-                                player = await functions.getProfile(eva_username.string)
+                                player = await functions.getProfile(eva_username.string, await functions.getCurrentSeasonNumber(self.bot))
                             except UserNotFound:
                                 embed.description += f":x:** - Compte EVA `{eva_username.string}` non associé, le compte n'existe pas.**\n"
                             else:
@@ -1277,7 +1277,47 @@ class Listeners(commands.Cog):
                     components.append(component)
             
             await inter.message.edit(components=components)
+
+        elif custom_id == "refresh_reservation":
+            await inter.response.defer(with_message=False)
+            embed = inter.message.embeds[0]
+            date_resa = datetime.datetime.fromtimestamp(int(re.search("[0-9]+", embed.fields[2].value.split("|")[0].strip()).group()))
+            current_season_number = functions.getCurrentSeasonNumber(self.bot)
+            calendar = await functions.getCalendar(self, date_resa, city_name=embed.fields[0].value)
+            calendar = calendar["calendar"]
+            session = None
+
+            for session_list in calendar["sessionList"]["list"]:
+                if date_resa.timestamp() == datetime.datetime.fromisoformat(session_list["slot"]["datetime"]).timestamp():
+                    try:
+                        arena = int(embed.fields[1].value[-1]) - 1
+                    except ValueError:
+                        arena = 0
+                    session_data = session_list["sessionList"][arena]
+                    session = await functions.getSession(session_data["slot"]["id"], session_data["terrainId"])
+                    session = session["getSession"]
+
+                    for terrain in session_list["availabilities"]:
+                        if terrain["taken"] == 0 or terrain["terrainId"] != session_data["terrainId"]:
+                            continue
             
+                        players_list = []
+
+                        for booking_list in session["bookingList"]:
+                            player_count = booking_list["playerCount"]
+                            for i in range(player_count):
+                                if i < len(booking_list["playerList"]) and booking_list["playerList"][i]["username"]:
+                                    players_list.append(
+                                        booking_list["playerList"][i])
+                                else:
+                                    players_list.append(None)
+
+                        members_list = [[await functions.getProfile(player["username"], current_season_number), await functions.getMember(self.bot, player["username"])] if player and player["username"] else [None, None] for player in players_list]
+                        embed.description = f"__**Liste des joueurs**__:\n" + '\n'.join([member[1].mention if member[1] and isinstance(member[1], disnake.Member) and member[1].guild == inter.guild else (member[0]['player']['displayName'] if member[0] else "Anonyme") for member in members_list])
+                        embed.set_field_at(index=3, name="Nombre de joueurs", value=f"{terrain['taken']}/{terrain['total']}", inline=False)
+                        embed.set_footer(text="Dernier rafraîchissement")
+                        embed.timestamp = functions.getTimeStamp()
+            await inter.message.edit(embed=embed)
 
     @commands.Cog.listener()
     async def on_slash_command_error(self, inter: disnake.ApplicationCommandInteraction, error: commands.CommandError):

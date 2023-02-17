@@ -1,10 +1,12 @@
 import datetime
 
-PERMS_EVABOT = 398291233841
+PERMS_EVABOT = 399364975665
 
 ADMIN_USER = 440141443877830656
 EVA_COLOR = int("0x7562d9", base=16)
 # EVA_COLOR = int("0xff7825", base=16) # Halloween
+OFF_PEAK_HOURS_COLOR = int("0x779bed", base=16)
+PEAK_HOURS_COLOR = int("0xbc48b8", base=16)
 PERFECT_GREY = (47, 49, 54)
 
 COGS_NAMES = {"Admin": "Administrateur", "Mod": "Modérateur", "Eva": "Public", "Help": "Aide"}

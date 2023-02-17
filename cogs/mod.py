@@ -232,6 +232,14 @@ class Mod(commands.Cog):
     @commands.slash_command(name="sondage")
     @commands.default_member_permissions(manage_messages=True)
     async def sondage(self, inter: disnake.ApplicationCommandInteraction, question: str):
+        """
+            Créer un sondage avec plusieurs réponses possibles.
+
+            Parameters
+            ----------
+            question: :class:`str`
+                La question du sondage
+        """
         await inter.response.defer(with_message=False)
         
         embed = disnake.Embed(title=question, color=disnake.Color.from_rgb(*PERFECT_GREY))

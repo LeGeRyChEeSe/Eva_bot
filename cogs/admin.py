@@ -1,3 +1,4 @@
+import asyncio
 import json
 import disnake
 import logging
@@ -6,6 +7,7 @@ from disnake import SelectOption
 from disnake.ext import commands
 from disnake.ext.commands import errors as commandsErrors
 from disnake.ui import StringSelect, ActionRow, Button
+from disnake.utils import format_dt
 import utils.functions as functions
 from utils.constants import *
 
@@ -55,6 +57,11 @@ class Admin(commands.Cog):
         await inter.response.defer(with_message=True, ephemeral=True)
         embeds = []
         city_exists = True
+        cities = functions.getCities(self)
+        city = functions.getCityfromDict(cities, city_name=ville)
+        location = await functions.getLocation(city["id"])
+        location = location["location"]
+        current_season_number = functions.getCurrentSeasonNumber(self.bot)
         
         if not "COMMUNITY" in inter.guild.features:
             await inter.edit_original_response("**Activation de la communauté de serveur...**")
@@ -122,7 +129,7 @@ class Admin(commands.Cog):
             embed.description += f"- La salle de {ville} n'a pas encore ouverte ses portes au public, vous ne pouvez donc pas choisir cette ville pour configurer le forum des réservations pour le moment. Merci pour votre compréhension.\n\n"
             city_exists = False
 
-        if city_exists:        
+        if city_exists:
             if not resa_channel_id:
                 await inter.edit_original_response("**Création du forum des réservations...**")
                 date = await functions.setDateTags(calendar)
@@ -158,6 +165,27 @@ class Admin(commands.Cog):
             
             days_with_dates = await functions.getEachDayInTheWeek()
             days_with_dates = sorted(days_with_dates.items(), key=lambda x: x[1], reverse=True)
+            peak_hours_emoji = [emoji for emoji in inter.guild.emojis if emoji.name == "peak_hours"]
+            off_peak_hours_emoji = [emoji for emoji in inter.guild.emojis if emoji.name == "off_peak_hours"]
+
+            if not peak_hours_emoji:
+                with open("./assets/Images/peak_hours.png", "rb") as image:
+                    try:
+                        peak_hours_emoji = await inter.guild.create_custom_emoji(name="peak_hours", image=bytearray(image.read()))
+                    except disnake.errors.Forbidden:
+                        peak_hours_emoji = ":purple_square:"
+                        off_peak_hours_emoji = ":blue_square:"
+            else:
+                peak_hours_emoji = peak_hours_emoji[0]
+            if not off_peak_hours_emoji:
+                with open("./assets/Images/off_peak_hours.png", "rb") as image:
+                    try:
+                        off_peak_hours_emoji = await inter.guild.create_custom_emoji(name="off_peak_hours", image=bytearray(image.read()))
+                    except disnake.errors.Forbidden:
+                        peak_hours_emoji = ":purple_square:"
+                        off_peak_hours_emoji = ":blue_square:"
+            else:
+                off_peak_hours_emoji = off_peak_hours_emoji[0]
 
             for t in days_with_dates:
                 k, v = t[0], t[1]
@@ -169,21 +197,59 @@ class Admin(commands.Cog):
                     calendar = await functions.getCalendar(self, v, city_name=ville)
                     calendar = calendar["calendar"]
                     forum_embed = disnake.Embed(title=f"Réservations du {v.strftime('%A %d %B %Y')}", color=disnake.Color.red())
+                    forum_embed.description = f"{peak_hours_emoji} Heures pleines\n{off_peak_hours_emoji} Heures creuses"
                     forum_embed.set_image(file=disnake.File("assets/Images/reservation.gif"))
-                    select_options = []
+
+                    buttons = []
+                    buttons.append(Button(style=disnake.ButtonStyle.url, label="Réserver sur EVA.GG", url=f"https://www.eva.gg/fr/calendrier?locationId={calendar['location']['id']}&gameId=1&currentDate={v.strftime('%Y-%m-%d')}"))
+                    buttons.append(Button(
+                                style=disnake.ButtonStyle.danger, label="Associer compte EVA", custom_id="link_button", emoji="🪢"))
+
+                    new_thread, _ = await resa_channel.create_thread(name=f"{v.strftime('%A %d %B %Y')}", applied_tags=[tag], embed=forum_embed, components=buttons)
 
                     for day in calendar["sessionList"]["list"]:
-                        select_options.append(SelectOption(label=f"{day['startTime']}", value=json.dumps({
-                            "loc": day["slot"]["locationId"],
-                            "date": day["slot"]["date"],
-                            "start": day["slot"]["startTime"],
-                            "end": day["slot"]["endTime"]
-                        }), description=f"{day['startTime']} ➡️ {day['endTime']}"))
+                        slot_id = day["slot"]["id"]
+                        for terrain in day["availabilities"]:
+                            if terrain["taken"] == 0:
+                                continue
+                            terrain_id = terrain["terrainId"]
+                            terrain_name = [i["name"] for i in location["details"]["terrains"] if i["id"] == terrain_id]
+                            date = datetime.datetime.fromisoformat(
+                                day["slot"]["datetime"])
+                            session = await functions.getSession(slot_id, terrain_id)
+                            session = session["getSession"]
+                            players_list = []
 
-                    select = StringSelect(placeholder="Choisir un horaire", options=select_options, custom_id="reservation")
-                    button = Button(style=disnake.ButtonStyle.url, label="Réserver sur EVA.GG", url=f"https://www.eva.gg/fr/calendrier?locationId={calendar['location']['id']}&gameId=1&currentDate={v.strftime('%Y-%m-%d')}")
+                            for booking_list in session["bookingList"]:
+                                player_count = booking_list["playerCount"]
+                                for i in range(player_count):
+                                    if i < len(booking_list["playerList"]) and booking_list["playerList"][i]["username"]:
+                                        players_list.append(booking_list["playerList"][i])
+                                    else:
+                                        players_list.append(None)
 
-                    await resa_channel.create_thread(name=f"{v.strftime('%A %d %B %Y')}", applied_tags=[tag], embed=forum_embed, components=[button, select])
+                            members_list = [[await functions.getProfile(player["username"], current_season_number), await functions.getMember(self.bot, player["username"])] if player and player["username"] else [None, None] for player in players_list]
+
+                            resa_embed = disnake.Embed(
+                                title=f"Réservation à {day['slot']['startTime']}", color=PEAK_HOURS_COLOR if day["isPeakHour"] else OFF_PEAK_HOURS_COLOR)
+                            resa_embed.description = f"__**Liste des joueurs**__:\n" + '\n'.join([member[1].mention if member[1] and isinstance(member[1], disnake.Member) and member[1].guild == inter.guild else (member[0]['player']['displayName'] if member[0] else "Anonyme") for member in members_list])
+                            resa_embed.add_field(
+                                name="Ville", value=city["name"], inline=False)
+                            resa_embed.add_field(
+                                name="Terrain", value=terrain_name[0], inline=False)
+                            resa_embed.add_field(
+                                name="Horaire choisi", value=f"{format_dt(date)} | {format_dt(date, style='R')}", inline=False)
+                            resa_embed.add_field(
+                                name="Nombre de joueurs", value=f"{terrain['taken']}/{terrain['total']}", inline=False)
+
+                            buttons = [
+                                Button(style=disnake.ButtonStyle.url, label="Réserver (EVA.GG)",
+                                        url=f"https://www.eva.gg/fr/calendrier?locationId={city['id']}&gameId=1&currentDate={day['slot']['date']}"),
+                                Button(
+                                    style=disnake.ButtonStyle.secondary, label="Rafraîchir", emoji="🔃",custom_id="refresh_reservation")
+                            ]
+
+                            await new_thread.send(embed=resa_embed, components=buttons)
 
             embed.description += "+ Ajout des espaces de réservations par jour dans le salon pour les réservations\n\n"
         
@@ -390,6 +456,11 @@ class Admin(commands.Cog):
         elif setup_city_name and forum_resa_id:
             calendar = await functions.getCalendar(self, datetime.datetime.now(), city_name=setup_city_name)
             calendar = calendar["calendar"]
+            cities = functions.getCities(self)
+            city = functions.getCityfromDict(cities, city_name=setup_city_name)
+            location = await functions.getLocation(city["id"])
+            location = location["location"]
+            current_season_number = functions.getCurrentSeasonNumber(self.bot)
 
             if calendar["sessionList"]["list"]:
                 resa_channel = await self.bot.fetch_channel(forum_resa_id)
@@ -404,6 +475,27 @@ class Admin(commands.Cog):
                 
                 days_with_dates = await functions.getEachDayInTheWeek()
                 days_with_dates = sorted(days_with_dates.items(), key=lambda x: x[1], reverse=True)
+                peak_hours_emoji = [emoji for emoji in inter.guild.emojis if emoji.name == "peak_hours"]
+                off_peak_hours_emoji = [emoji for emoji in inter.guild.emojis if emoji.name == "off_peak_hours"]
+
+                if not peak_hours_emoji:
+                    with open("./assets/Images/peak_hours.png", "rb") as image:
+                        try:
+                            peak_hours_emoji = await inter.guild.create_custom_emoji(name="peak_hours", image=bytearray(image.read()))
+                        except disnake.errors.Forbidden:
+                            peak_hours_emoji = ":purple_square:"
+                            off_peak_hours_emoji = ":blue_square:"
+                else:
+                    peak_hours_emoji = peak_hours_emoji[0]
+                if not off_peak_hours_emoji:
+                    with open("./assets/Images/off_peak_hours.png", "rb") as image:
+                        try:
+                            off_peak_hours_emoji = await inter.guild.create_custom_emoji(name="off_peak_hours", image=bytearray(image.read()))
+                        except disnake.errors.Forbidden:
+                            peak_hours_emoji = ":purple_square:"
+                            off_peak_hours_emoji = ":blue_square:"
+                else:
+                    off_peak_hours_emoji = off_peak_hours_emoji[0]
 
                 for t in days_with_dates:
                     k, v = t[0], t[1]
@@ -415,20 +507,58 @@ class Admin(commands.Cog):
                         calendar = await functions.getCalendar(self, v, city_name=setup_city_name)
                         calendar = calendar["calendar"]
                         forum_embed = disnake.Embed(title=f"Réservations du {v.strftime('%A %d %B %Y')}", color=disnake.Color.red())
+                        forum_embed.description = f"{peak_hours_emoji} Heures pleines\n{off_peak_hours_emoji} Heures creuses"
                         forum_embed.set_image(file=disnake.File("assets/Images/reservation.gif"))
-                        select_options = []
+                        
+                        buttons = []
+                        buttons.append(Button(style=disnake.ButtonStyle.url, label="Réserver sur EVA.GG", url=f"https://www.eva.gg/fr/calendrier?locationId={calendar['location']['id']}&gameId=1&currentDate={v.strftime('%Y-%m-%d')}"))
+                        buttons.append(Button(
+                                    style=disnake.ButtonStyle.danger, label="Associer compte EVA", custom_id="link_button", emoji="🪢"))
 
+                        new_thread, _ = await resa_channel.create_thread(name=f"{v.strftime('%A %d %B %Y')}", applied_tags=[tag], embed=forum_embed, components=buttons)
                         for day in calendar["sessionList"]["list"]:
-                            select_options.append(SelectOption(label=f"{day['startTime']}", value=json.dumps({
-                                "loc": day["slot"]["locationId"],
-                                "date": day["slot"]["date"],
-                                "start": day["slot"]["startTime"],
-                                "end": day["slot"]["endTime"]
-                            }), description=f"{day['startTime']} ➡️ {day['endTime']}"))
+                            slot_id = day["slot"]["id"]
+                            for terrain in day["availabilities"]:
+                                if terrain["taken"] == 0:
+                                    continue
+                                terrain_id = terrain["terrainId"]
+                                terrain_name = [i["name"] for i in location["details"]["terrains"] if i["id"] == terrain_id]
+                                date = datetime.datetime.fromisoformat(
+                                    day["slot"]["datetime"])
+                                session = await functions.getSession(slot_id, terrain_id)
+                                session = session["getSession"]
+                                players_list = []
 
-                        select = StringSelect(placeholder="Choisir un horaire", options=select_options, custom_id="reservation")
+                                for booking_list in session["bookingList"]:
+                                    player_count = booking_list["playerCount"]
+                                    for i in range(player_count):
+                                        if i < len(booking_list["playerList"]) and booking_list["playerList"][i]["username"]:
+                                            players_list.append(booking_list["playerList"][i])
+                                        else:
+                                            players_list.append(None)
 
-                        await resa_channel.create_thread(name=f"{v.strftime('%A %d %B %Y')}", applied_tags=[tag], embed=forum_embed, components=select)
+                                members_list = [[await functions.getProfile(player["username"], current_season_number), await functions.getMember(self.bot, player["username"])] if player and player["username"] else [None, None] for player in players_list]
+
+                                resa_embed = disnake.Embed(
+                                    title=f"Réservation à {day['slot']['startTime']}", color=PEAK_HOURS_COLOR if day["isPeakHour"] else OFF_PEAK_HOURS_COLOR)
+                                resa_embed.description = f"__**Liste des joueurs**__:\n" + '\n'.join([member[1].mention if member[1] and isinstance(member[1], disnake.Member) and member[1].guild == inter.guild else (member[0]['player']['displayName'] if member[0] else "Anonyme") for member in members_list])
+                                resa_embed.add_field(
+                                    name="Ville", value=city["name"], inline=False)
+                                resa_embed.add_field(
+                                    name="Terrain", value=terrain_name[0], inline=False)
+                                resa_embed.add_field(
+                                    name="Horaire choisi", value=f"{format_dt(date)} | {format_dt(date, style='R')}", inline=False)
+                                resa_embed.add_field(
+                                    name="Nombre de joueurs", value=f"{terrain['taken']}/{terrain['total']}", inline=False)
+
+                                buttons = [
+                                    Button(style=disnake.ButtonStyle.url, label="Réserver (EVA.GG)",
+                                            url=f"https://www.eva.gg/fr/calendrier?locationId={city['id']}&gameId=1&currentDate={day['slot']['date']}"),
+                                    Button(
+                                        style=disnake.ButtonStyle.secondary, label="Rafraîchir", emoji="🔃",custom_id="refresh_reservation")
+                                ]
+
+                                await new_thread.send(embed=resa_embed, components=buttons)
 
                 async with self.bot.pool.acquire() as con:
                     await con.execute("""
@@ -495,6 +625,10 @@ class Admin(commands.Cog):
                     await resa_channel.edit(topic=f"Salon des réservations à {functions.getCityfromDict(functions.getCities(self), city_id=guild_config['city_id'])['name']} uniquement. Choisissez le jour où vous voulez réserver une session en cliquant sur l'un des salons ci-dessous, puis choisissez votre horaire en cliquant sur le bouton \"Choisir un horaire\"", default_sort_order=disnake.ThreadSortOrder.creation_date, default_layout=disnake.utils.MISSING)
 
         await inter.edit_original_message("**Les forums des réservations ont bien été réparé.**")
+
+    @commands.slash_command(name="test")
+    async def test(self, inter: disnake.ApplicationCommandInteraction):
+        print(inter.guild.get_role(1010978821966671985).permissions.value > inter.guild.me.guild_permissions.value)
 
     @fix.autocomplete("setup_city_name")
     async def ville_autocomplete(self, inter: disnake.ApplicationCommandInteraction, ville: str):
