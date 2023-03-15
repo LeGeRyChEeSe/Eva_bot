@@ -1,4 +1,3 @@
-import json
 import disnake
 import re
 import copy
@@ -10,10 +9,11 @@ import typing
 from utils.constants import *
 from utils.errors import *
 import utils.functions as functions
+import utils.classes as classes
 
 
 class Tasks(commands.Cog):
-    def __init__(self, bot: commands.InteractionBot) -> None:
+    def __init__(self, bot: classes.EvaBot) -> None:
         self.bot = bot
         self.set_variables.start()
 
@@ -21,13 +21,13 @@ class Tasks(commands.Cog):
     @tasks.loop(count=1)
     async def set_variables(self):
         # Seasons List
-        self.bot.get_cog("Variables").seasons_list = await functions.getSeasonsList()
+        self.bot.seasons_list = await functions.getSeasonsList()
 
         # Eva Cities
-        self.bot.get_cog("Variables").eva_cities = await functions.setCities()
+        self.bot.eva_cities = await functions.setCities()
 
         # Resa Channels
-        self.bot.get_cog("Variables").resa_channels = await functions.setGuildsResaChannels(self.bot.pool)
+        self.bot.resa_channels = await functions.setGuildsResaChannels(self.bot.pool)
 
     @set_variables.before_loop
     async def before_set_variables(self):
@@ -54,7 +54,7 @@ class Tasks(commands.Cog):
         all_players: typing.List[typing.Dict[typing.Dict, typing.Dict]] = await functions.getAllPlayersInfos(self.bot)
         all_players_unformated = copy.deepcopy(all_players)
 
-        for stat in all_players[0]["player_stats"].keys():
+        for stat in all_players[0]["player"]["statistics"]["data"].keys():
             reverse = True
 
             if stat in ["bestInflictedDamage", "killDeathRatio", "gameDrawCount"]:
@@ -65,10 +65,10 @@ class Tasks(commands.Cog):
 
             if stat == "experience":
                 all_players.sort(
-                    key=lambda x: x["player_infos"]["experience"][stat] or 0, reverse=reverse)
+                    key=lambda x: x["player"]["experience"][stat] or 0, reverse=reverse)
             else:
                 all_players.sort(
-                    key=lambda x: x["player_stats"][stat] or 0, reverse=reverse)
+                    key=lambda x: x["player"]["statistics"]["data"][stat] or 0, reverse=reverse)
 
             for i in range(len(all_players)):
                 try:
@@ -76,9 +76,8 @@ class Tasks(commands.Cog):
                 except:
                     all_players[i]["rank"] = 0
 
-        self.bot.get_cog(
-            "Variables").guilds_ranking["all_players"] = copy.deepcopy(all_players)
-        cities = functions.getCities(self)
+        self.bot.guilds_ranking["all_players"] = copy.deepcopy(all_players)
+        cities = functions.getCities(self.bot)
         best_players_ranking_channels = []
 
         async with self.bot.pool.acquire() as con:
@@ -112,7 +111,7 @@ class Tasks(commands.Cog):
                        for record in best_players_ranking_channels_id if record["guild_id"] == guild.id][0]
             city = functions.getCityfromDict(cities, city_id=city_id)
             players = [copy.deepcopy(player_list) for player_list in all_players_unformated if guild.get_member(
-                player_list["player_infos"]["memberId"])]
+                player_list["player"]["memberId"])]
 
             if not channel.permissions_for(guild.me).send_messages or not channel.permissions_for(guild.me).embed_links or not city:
                 continue
@@ -139,7 +138,7 @@ class Tasks(commands.Cog):
 
             select_options = []
 
-            for stat in players[0]["player_stats"].keys():
+            for stat in players[0]["player"]["statistics"]["data"].keys():
                 reverse = True
 
                 if stat in ["bestInflictedDamage", "killDeathRatio", "gameDrawCount"]:
@@ -150,10 +149,10 @@ class Tasks(commands.Cog):
 
                 if stat == "experience":
                     players.sort(
-                        key=lambda x: x["player_infos"]["experience"][stat] or 0, reverse=reverse)
+                        key=lambda x: x["player"]["experience"][stat] or 0, reverse=reverse)
                 else:
                     players.sort(
-                        key=lambda x: x["player_stats"][stat] or 0, reverse=reverse)
+                        key=lambda x: x["player"]["statistics"]["data"][stat] or 0, reverse=reverse)
                 select_options.append(SelectOption(
                     label=STATS[stat], value=stat, description=f"Voir le classement par {STATS[stat]}"))
 
@@ -171,7 +170,7 @@ class Tasks(commands.Cog):
 
             players.sort(key=lambda x: x["rank"])
 
-            self.bot.get_cog("Variables").guilds_ranking[guild.id] = players
+            self.bot.guilds_ranking[guild.id] = players
 
             for i in range(len(players)):
                 if i == MAX_PLAYERS_SCOREBOARD:
@@ -180,7 +179,7 @@ class Tasks(commands.Cog):
                     break
 
                 member = guild.get_member(
-                    players[i]['player_infos']['memberId'])
+                    players[i]['player']['memberId'])
 
                 if not member:
                     continue
@@ -195,7 +194,7 @@ class Tasks(commands.Cog):
                     number = str(i+1)
                     new_number = ""
                     for n in number:
-                        new_number += numbers[int(n)]
+                        new_number += NUMBERS[int(n)]
                     first_message = f"{new_number}"
 
                 embed1.description += f"{first_message}: {member.mention} | `{players[i]['rank']} Points`\n┣┅┅┅┅┅┅┅┅┅┅┅\n"
@@ -231,7 +230,7 @@ class Tasks(commands.Cog):
     # Set Deadline Resa Channels
     @tasks.loop(minutes=1)
     async def deadline_resa_channel(self):
-        for record in self.bot.get_cog("Variables").resa_channels:
+        for record in self.bot.resa_channels:
             guild = self.bot.get_guild(record["guild_id"])
             resa_channel: disnake.ForumChannel = guild.get_channel(
                 record["resa_channel_id"])
@@ -288,7 +287,7 @@ class Tasks(commands.Cog):
     # Set Alert Resa
     @tasks.loop(minutes=1)
     async def alert_resa(self):
-        for record in self.bot.get_cog("Variables").resa_channels:
+        for record in self.bot.resa_channels:
             guild = self.bot.get_guild(record["guild_id"])
             resa_channel: disnake.ForumChannel = guild.get_channel(
                 record["resa_channel_id"])
@@ -339,29 +338,35 @@ class Tasks(commands.Cog):
                     continue
 
     # Set Update Days Resa
-    @tasks.loop(minutes=1)
+    @tasks.loop(minutes=20)
     async def updateDaysResa(self):
         """
             Met à jour tous les fils (threads) de chaque forum de réservation de chaque serveur
             en fonction de la date actuelle jusqu'à J+6.
         """
         current_season_number = functions.getCurrentSeasonNumber(self.bot)
-        for record in self.bot.get_cog("Variables").resa_channels:
+        for record in self.bot.resa_channels:
             guild = self.bot.get_guild(record["guild_id"])
             resa_channel: disnake.ForumChannel = guild.get_channel(
                 record["resa_channel_id"])
             days_with_dates = await functions.getEachDayInTheWeek()
             days_with_dates = sorted(
                 days_with_dates.items(), key=lambda x: x[1], reverse=True)
-            
-            peak_hours_emoji = [emoji for emoji in guild.emojis if emoji.name == "peak_hours"]
-            off_peak_hours_emoji = [emoji for emoji in guild.emojis if emoji.name == "off_peak_hours"]
-            
+            days_with_dates_formated: typing.List[datetime.date] = []
+
+            for _, date in days_with_dates:
+                days_with_dates_formated.append(date.date())
+
+            peak_hours_emoji = [
+                emoji for emoji in guild.emojis if emoji.name == "peak_hours"]
+            off_peak_hours_emoji = [
+                emoji for emoji in guild.emojis if emoji.name == "off_peak_hours"]
+
             if not peak_hours_emoji:
                 with open("./assets/Images/peak_hours.png", "rb") as image:
                     try:
                         peak_hours_emoji = await guild.create_custom_emoji(name="peak_hours", image=bytearray(image.read()))
-                    except disnake.errors.Forbidden:
+                    except:
                         peak_hours_emoji = ":purple_square:"
                         off_peak_hours_emoji = ":blue_square:"
             else:
@@ -370,7 +375,7 @@ class Tasks(commands.Cog):
                 with open("./assets/Images/off_peak_hours.png", "rb") as image:
                     try:
                         off_peak_hours_emoji = await guild.create_custom_emoji(name="off_peak_hours", image=bytearray(image.read()))
-                    except disnake.errors.Forbidden:
+                    except:
                         peak_hours_emoji = ":purple_square:"
                         off_peak_hours_emoji = ":blue_square:"
             else:
@@ -388,12 +393,16 @@ class Tasks(commands.Cog):
                 WHERE global_config.guild_id = $1
                 """, guild.id)
 
-            cities = functions.getCities(self)
+            if not location_id:
+                continue
+
+            cities = functions.getCities(self.bot)
             city = functions.getCityfromDict(
                 cities, city_id=location_id[0]["city_id"])
             location = await functions.getLocation(city["id"])
             location = location["location"]
             threads: typing.List[disnake.Thread] = []
+            threads_dates = [datetime.datetime.strptime(thread.name, "%A %d %B %Y") for thread in resa_channel.threads]
             next_day = False
 
             for thread in resa_channel.threads:
@@ -405,10 +414,10 @@ class Tasks(commands.Cog):
                 except:
                     continue
 
-                days_with_dates_formated: typing.List[datetime.date] = []
-
-                for _, date in days_with_dates:
-                    days_with_dates_formated.append(date.date())
+                if threads_dates.count(thread_date) > 1:
+                    await thread.delete(reason='Doublon')
+                    threads_dates.remove(thread_date)
+                    continue
 
                 if thread_date.date() not in days_with_dates_formated:
                     for t in days_with_dates:
@@ -418,11 +427,11 @@ class Tasks(commands.Cog):
                             tag for tag in resa_channel.available_tags if day_tag == tag.name]
                         if tag:
                             tag = tag[0]
-                            calendar = await functions.getCalendar(self, v, city_name=city["name"])
+                            calendar = await functions.getCalendar(self.bot, v, city_name=city["name"])
                             calendar = calendar["calendar"]
                             forum_embed = disnake.Embed(
                                 title=f"Réservations du {v.strftime('%A %d %B %Y')}", color=disnake.Color.red())
-                            forum_embed.description =  f"{peak_hours_emoji} Heures pleines\n{off_peak_hours_emoji} Heures creuses"
+                            forum_embed.description = f"{peak_hours_emoji} Heures pleines\n{off_peak_hours_emoji} Heures creuses"
                             forum_embed.set_image(file=disnake.File(
                                 "assets/Images/reservation.gif"))
                             buttons = []
@@ -456,11 +465,11 @@ class Tasks(commands.Cog):
                                             else:
                                                 players_list.append(None)
 
-                                    members_list = [[await functions.getProfile(player["username"], current_season_number), await functions.getMember(self.bot, player["username"])] if player and player["username"] else [None, None] for player in players_list]
+                                    members_list = [[await functions.getStats(player["username"], seasonId=current_season_number), await functions.getMember(self.bot, player["username"])] if player and player["username"] else [None, None] for player in players_list]
 
                                     resa_embed = disnake.Embed(
                                         title=f"Réservation à {day['slot']['startTime']}", color=PEAK_HOURS_COLOR if day["isPeakHour"] else OFF_PEAK_HOURS_COLOR)
-                                    resa_embed.description = f"__**Liste des joueurs**__:\n" + '\n'.join([member[1].mention if member[1] and isinstance(member[1], disnake.Member) and member[1].guild == guild else (member[0]['player']['displayName'] if member[0] else "Anonyme") for member in members_list])
+                                    resa_embed.description = f"__**Liste des joueurs**__:\n" + '\n'.join([f"[{member[0]['player']['displayName']}](https://www.eva.gg/profile/public/{member[0]['player']['username']}) | {member[1].mention}" if member[1] else (f"[{member[0]['player']['displayName']}](https://www.eva.gg/profile/public/{member[0]['player']['username']})" if member[0] else "Anonyme") for member in members_list])
                                     resa_embed.add_field(
                                         name="Ville", value=city["name"], inline=False)
                                     resa_embed.add_field(
@@ -483,6 +492,60 @@ class Tasks(commands.Cog):
                             await thread.delete()
                             break
                 else:
+                    calendar = await functions.getCalendar(self.bot, thread_date, city_name=city["name"])
+                    calendar = calendar["calendar"]
+                    messages = await thread.history().flatten()
+
+                    for day in calendar["sessionList"]["list"]:
+                        slot_id = day["slot"]["id"]
+                        date = day['slot']['datetime']
+                        start_time = day['slot']['startTime']
+                        for terrain in day["availabilities"]:
+                            if terrain["taken"] == 0:
+                                continue
+                            terrain_id = terrain["terrainId"]
+                            terrain_name = [
+                                i["name"] for i in location["details"]["terrains"] if i["id"] == terrain_id]
+                            if True in (start_time in message.embeds[0].title for message in messages if message.author == self.bot.user) and terrain_name[0] in (message.embeds[0].fields[1].value for message in messages if message.author == self.bot.user):
+                                continue
+
+                            date = datetime.datetime.fromisoformat(
+                                day["slot"]["datetime"])
+                            session = await functions.getSession(slot_id, terrain_id)
+                            session = session["getSession"]
+                            players_list = []
+
+                            for booking_list in session["bookingList"]:
+                                player_count = booking_list["playerCount"]
+                                for i in range(player_count):
+                                    if i < len(booking_list["playerList"]) and booking_list["playerList"][i]["username"]:
+                                        players_list.append(
+                                            booking_list["playerList"][i])
+                                    else:
+                                        players_list.append(None)
+
+                            members_list = [[await functions.getStats(player["username"], seasonId=current_season_number), await functions.getMember(self.bot, player["username"])] if player and player["username"] else [None, None] for player in players_list]
+
+                            resa_embed = disnake.Embed(
+                                title=f"Réservation à {day['slot']['startTime']}", color=PEAK_HOURS_COLOR if day["isPeakHour"] else OFF_PEAK_HOURS_COLOR)
+                            resa_embed.description = f"__**Liste des joueurs**__:\n" + '\n'.join([f"[{member[0]['player']['displayName']}](https://www.eva.gg/profile/public/{member[0]['player']['username']}) | {member[1].mention}" if member[1] else (f"[{member[0]['player']['displayName']}](https://www.eva.gg/profile/public/{member[0]['player']['username']})" if member[0] else "Anonyme") for member in members_list])
+                            resa_embed.add_field(
+                                name="Ville", value=city["name"], inline=False)
+                            resa_embed.add_field(
+                                name="Terrain", value=terrain_name[0], inline=False)
+                            resa_embed.add_field(
+                                name="Horaire choisi", value=f"{format_dt(date)} | {format_dt(date, style='R')}", inline=False)
+                            resa_embed.add_field(
+                                name="Nombre de joueurs", value=f"{terrain['taken']}/{terrain['total']}", inline=False)
+
+                            buttons = [
+                                Button(style=disnake.ButtonStyle.url, label="Réserver (EVA.GG)",
+                                        url=f"https://www.eva.gg/fr/calendrier?locationId={city['id']}&gameId=1&currentDate={day['slot']['date']}"),
+                                Button(
+                                    style=disnake.ButtonStyle.secondary, label="Rafraîchir", emoji="🔃", custom_id="refresh_reservation")
+                            ]
+
+                            await thread.send(embed=resa_embed, components=buttons)
                     threads.append(thread)
 
                 if thread_date.date() == datetime.datetime.now(thread_date.tzinfo).date():
@@ -518,7 +581,7 @@ class Tasks(commands.Cog):
                     new_thread, _ = await resa_channel.create_thread(name=thread.name, applied_tags=thread.applied_tags, embeds=first_message.embeds, components=ActionRow.rows_from_message(first_message))
                     new_thread_date = datetime.datetime.strptime(
                         new_thread.name, "%A %d %B %Y")
-                    calendar = await functions.getCalendar(self, new_thread_date, city_name=city["name"])
+                    calendar = await functions.getCalendar(self.bot, new_thread_date, city_name=city["name"])
                     calendar = calendar["calendar"]
 
                     if len(history) > 1:
@@ -557,7 +620,7 @@ class Tasks(commands.Cog):
 
                                 resa_embed = disnake.Embed(
                                     title=f"Réservation à {day['slot']['startTime']}", color=PEAK_HOURS_COLOR if day["isPeakHour"] else OFF_PEAK_HOURS_COLOR)
-                                resa_embed.description = f"__**Liste des joueurs**__:\n" + '\n'.join([member[1].mention if member[1] and isinstance(member[1], disnake.Member) and member[1].guild == guild else (member[0]['player']['displayName'] if member[0] else "Anonyme") for member in members_list])
+                                resa_embed.description = f"__**Liste des joueurs**__:\n" + '\n'.join([f"[{member[0]['player']['displayName']}](https://www.eva.gg/profile/public/{member[0]['player']['username']}) | {member[1].mention}" if member[1] else (f"[{member[0]['player']['displayName']}](https://www.eva.gg/profile/public/{member[0]['player']['username']})" if member[0] else "Anonyme") for member in members_list])
                                 resa_embed.add_field(
                                     name="Ville", value=city["name"], inline=False)
                                 resa_embed.add_field(
@@ -586,5 +649,5 @@ class Tasks(commands.Cog):
         self.updateDaysResa.stop()
 
 
-def setup(bot: commands.InteractionBot):
+def setup(bot: classes.EvaBot):
     bot.add_cog(Tasks(bot))
