@@ -3,8 +3,7 @@ import typing
 import disnake
 import asyncpg
 from utils.errors import *
-from disnake.ext import commands
-from typing import Dict, List, Tuple, Union
+from typing import Dict, Union
 from gql import gql, Client
 from gql.transport.exceptions import TransportQueryError
 from gql.transport.aiohttp import AIOHTTPTransport
@@ -12,6 +11,7 @@ from PIL import Image, ImageDraw, ImageFont
 import random
 import datetime
 from utils.constants import *
+import utils.classes as classes
 
 # Fonctions asynchrones
 
@@ -40,6 +40,11 @@ async def getEachDayInTheWeek() -> Dict[int, datetime.datetime]:
 
 
 async def setCities():
+    """Récupère toutes les villes avec une salle EVA présente.
+
+    Returns:
+        Dict: Dictionnaire de toutes les villes EVA.
+    """
     eva_cities = await getCitiesGQL()
     eva_cities["cities"] = []
     for city in eva_cities["locations"]["nodes"]:
@@ -68,20 +73,20 @@ async def send_error(inter: disnake.ApplicationCommandInteraction, content: str 
 # Fonctions synchrones
 
 
-def getCurrentSeason(bot: commands.InteractionBot) -> Dict:
-    for season in bot.get_cog("Variables").seasons_list:
+def getCurrentSeason(bot: classes.EvaBot) -> Dict:
+    for season in bot.seasons_list:
         if season["active"]:
             return season
 
 
-def getCurrentSeasonNumber(bot: commands.InteractionBot) -> int:
-    for season in bot.get_cog("Variables").seasons_list:
+def getCurrentSeasonNumber(bot: classes.EvaBot) -> int:
+    for season in bot.seasons_list:
         if season["active"]:
             return season["seasonNumber"]
 
 
-def getCities(self) -> Dict:
-    return self.bot.get_cog("Variables").eva_cities
+def getCities(bot: classes.EvaBot) -> Dict:
+    return bot.eva_cities
 
 
 def perfectGrey() -> disnake.Color:
@@ -101,7 +106,7 @@ def getTimeStamp() -> datetime.datetime:
     return datetime.datetime.now()
 
 
-def getLocalization(bot: commands.InteractionBot, key: str, locale: disnake.Locale, **kwargs) -> str:
+def getLocalization(bot: classes.EvaBot, key: str, locale: disnake.Locale, **kwargs) -> str:
     """
         Récupère du texte en fonction de la langue de l'utilisateur.
 
@@ -165,6 +170,39 @@ def getCityfromDict(cities: Dict, city_name: str = None, city_id: int = None) ->
             return city
 
 # Fonctions manipulant des images
+
+
+def getSeasonImage(bot: classes.EvaBot, season: int) -> str:
+    season_image_path = f"assets/Images/season_{season}.png"
+    text = f"Saison {season}".upper()
+
+    if not os.path.exists(season_image_path):
+        bg = Image.open(f"assets/Images/season_{season}_bg.png")
+        text_font = ImageFont.truetype(
+            "assets/Fonts/gotham_condensed_medium.otf", 42)
+        image_editable = ImageDraw.Draw(bg)
+
+        if getCurrentSeasonNumber(bot) > season:
+            for s in bot.seasons_list:
+                if s["id"] == season and s["status"] == "PASSED":
+                    old_season = s
+                    end_season_date = datetime.datetime.fromisoformat(
+                        old_season['to'])
+                    end_of_season_text = f"Finie le {datetime.datetime.strftime(end_season_date, '%d/%m/%Y')}"
+                    end_of_season_text_font = ImageFont.truetype(
+                        "assets/Fonts/gotham_condensed_medium.otf", 19)
+                    _, _, w, h = image_editable.textbbox(
+                        (0, 0), end_of_season_text, font=end_of_season_text_font)
+                    image_editable.text((bg.size[0]/2 - w/2, bg.size[1]/2 + h),
+                                        end_of_season_text, (255, 255, 255), font=end_of_season_text_font)
+
+        _, _, w, h = image_editable.textbbox((0, 0), text, font=text_font)
+        image_editable.text(
+            (bg.size[0]/2 - w/2, bg.size[1]/2 - h/2), text, (255, 255, 255), font=text_font)
+
+        bg.save(season_image_path)
+
+    return season_image_path
 
 
 def getHeight(original_height: float) -> int:
@@ -484,46 +522,47 @@ def getColumnsImages():
 # Fonctions PosteGreSQL qui interagissent avec la base de données
 
 
-async def getMember(bot: commands.InteractionBot, player_username: str = None, player_id: int = None):
+async def getMember(bot: classes.EvaBot, player_username: str = None, player_id: int = None):
     async with bot.pool.acquire() as con:
         user_id = await con.fetch("""
-      SELECT user_id
-      FROM players
-      WHERE players.player_username = $1 OR players.player_id = $2
-      """, player_username, player_id)
+        SELECT user_id
+        FROM players
+        WHERE players.player_username = $1 OR players.player_id = $2
+        """, player_username, player_id)
     if user_id:
-      user_id = user_id[0]["user_id"]
-      return bot.get_user(user_id)
+        user_id = user_id[0]["user_id"]
+        return bot.get_user(user_id)
 
 
-async def getAllPlayersInfos(bot: commands.InteractionBot) -> List[Dict[Dict, Dict]]:
-    current_season_number = getCurrentSeasonNumber(bot)
-    all_players: List[Dict[Dict, Dict]] = []
+async def getAllPlayersInfos(bot: classes.EvaBot, season: int = None):
+    current_season_number = getCurrentSeasonNumber(
+        bot) if not season else season
+    players = []
 
     async with bot.pool.acquire() as con:
         players_infos = await con.fetch("""
-    SELECT player_id, player_username, user_id
-    FROM players
-    """)
+        SELECT player_id, player_username, user_id
+        FROM players
+        """)
 
-    for player in players_infos:
+    for player_infos in players_infos:
+        if not player_infos['player_id']:
+            continue
         try:
-            player_infos, player_stats = await getStats(player["player_id"], current_season_number)
+            player = await getStats(userId=player_infos['player_id'], seasonId=current_season_number)
         except UserIsPrivate:
             continue
         except:
             raise
         else:
-            player_infos["player"]["memberId"] = player["user_id"]
-            all_players.append(
-                {"player_infos": player_infos["player"], "player_stats": player_stats["player"]["statistics"]["data"]})
-
-    return all_players
+            player['player']['memberId'] = player_infos['user_id']
+            players.append(player)
+    return players
 
 
-async def getPlayerInfos(bot: commands.InteractionBot, player: disnake.User or disnake.Member = None, updatePlayer: bool = False) -> asyncpg.Record:
+async def getPlayerInfos(pool: asyncpg.Pool, player: typing.Union[disnake.User, disnake.Member] = None, updatePlayer: bool = False) -> asyncpg.Record:
     """
-      Fonction qui récupère les informations d'un joueur contenues dans la base de données.
+      Fonction qui récupère les informations d'un joueur contenues dans la base de données. (BDD)
 
       Parameters
       ----------
@@ -540,21 +579,21 @@ async def getPlayerInfos(bot: commands.InteractionBot, player: disnake.User or d
         Id du membre du serveur.
     """
     if player:
-        async with bot.pool.acquire() as con:
+        async with pool.acquire() as con:
             user = await con.fetch("""
-        SELECT player_id, player_username, user_id
-        FROM players
-        WHERE user_id = $1
-        """, player.id)
-
-            if user:
-                if updatePlayer:
-                    await updatePlayerInfos(bot.pool, user[0])
-                    user = await con.fetch("""
             SELECT player_id, player_username, user_id
             FROM players
             WHERE user_id = $1
             """, player.id)
+
+            if user:
+                if updatePlayer and user[0]["player_id"]:
+                    await updatePlayerInfos(pool, user[0])
+                    user = await con.fetch("""
+                  SELECT player_id, player_username, user_id
+                  FROM players
+                  WHERE user_id = $1
+                  """, player.id)
                 return user[0]
 
 # Fonctions GraphQl qui envoient des requêtes directement sur l'API de https://eva.gg
@@ -587,25 +626,18 @@ def getTransport() -> AIOHTTPTransport:
     return transport
 
 
-async def getStats(userId: int, seasonId: int) -> Tuple[Dict, Dict]:
+async def getStats(username: str = None, userId: int = None, seasonId: int = None) -> Dict:
     """
-      Récupérer les statistiques publiques d'un joueur.
+      Récupérer les informations publiques d'un joueur. (API EVA)
 
       Parameters
       ----------
+      username: :class:`str`
+        Le nom d'utilisateur du compte Eva.
       userId: :class:`int`
         L'id du compte Eva.
       seasonId: :class:`int`
         Le numéro de la saison.
-
-      Returns
-      -------
-      :class:`Tuple`(
-        player_infos: :class:`dict`
-          Les informations publiques du joueur Eva.
-        player_stats: :class:`dict`
-          Les stats publiques du joueur Eva.
-      )
     """
     async with Client(
         transport=getTransport(),
@@ -613,7 +645,7 @@ async def getStats(userId: int, seasonId: int) -> Tuple[Dict, Dict]:
     ) as session:
 
         # Profile Query
-        player_query = gql("""
+        query = gql("""
         query($userId: Int, $username: String, $seasonId: Int) {
           player(userId: $userId, username: $username) {
             ... {
@@ -634,30 +666,6 @@ async def getStats(userId: int, seasonId: int) -> Tuple[Dict, Dict]:
               experienceForCurrentLevel
               seasonId
             }
-          }
-        }
-      """)
-
-        params = {"userId": userId, "seasonId": seasonId}
-
-        try:
-            player_result = await session.execute(player_query, variable_values=params)
-        except TransportQueryError as e:
-            if e.errors:
-                if e.errors[0]["message"] == 'User profile is private':
-                    raise UserIsPrivate(
-                        "Le profil Eva de l'utilisateur est définis sur privé ! Il doit être public.") from None
-                elif e.errors[0]["message"] == "User not found":
-                    raise UserNotFound("Le joueur Eva n'existe pas.") from None
-                else:
-                    raise
-        except:
-            raise
-
-        # Stats Query
-        stats_query = gql("""
-        query($userId: Int, $username: String, $seasonId: Int) {
-          player(userId: $userId, username: $username) {
             statistics(gameId: 1, seasonId: $seasonId) {
               data {
                 gameCount
@@ -681,85 +689,7 @@ async def getStats(userId: int, seasonId: int) -> Tuple[Dict, Dict]:
         }
       """)
 
-        params = {"userId": userId, "seasonId": seasonId}
-
-        try:
-            stats_result = await session.execute(stats_query, variable_values=params)
-        except TransportQueryError as e:
-            if e.errors:
-                if e.errors[0]["message"] == 'User profile is private':
-                    raise UserIsPrivate(
-                        "Le profil Eva de l'utilisateur est définis sur privé ! Il doit être public.") from None
-                elif e.errors[0]["message"] == "User not found":
-                    raise UserNotFound("Le joueur Eva n'existe pas.") from None
-                else:
-                    raise
-        except:
-            raise
-
-        return player_result, stats_result
-
-
-async def getProfile(username: str, seasonId: int) -> Dict:
-    """
-      Récupérer les informations publiques du profil d'un joueur.
-
-      Pour récupérer l'attribut ``username`` d'un membre, utilisez la fonction :meth:`getPlayerInfos(bot, member)`
-
-      Parameters
-      ----------
-      username: :class:`str`
-        Le nom d'utilisateur du joueur.
-
-      Returns
-      ------
-      userId: :class:`int`
-        Id du joueur.
-      username: :class:`str`
-        Nom complet du joueur avec le discriminant.
-      displayName: :class:`str`
-        Nom du joueur sans le discriminant.
-      seasonPass:
-        active: :class:`bool`
-      experience:
-        experience: :class:`int`
-        experienceForCurrentLevel: :class:`int`
-        experienceForNextLevel: :class:`int`
-        level: :class:`int`
-        levelProgressionPercentage: :class:`int`
-        seasonId: :class:`int`
-    """
-    async with Client(
-        transport=getTransport(),
-        fetch_schema_from_transport=False,
-    ) as session:
-
-        query = gql("""
-        query($userId: Int, $username: String, $seasonId: Int) {
-          player(userId: $userId, username: $username) {
-            ... {
-              userId
-              username
-              displayName
-            }
-
-            seasonPass(seasonId: $seasonId) {
-              active
-            }
-
-            experience(gameId: 1, seasonId: $seasonId) {
-              level
-              levelProgressionPercentage
-              experience
-              experienceForNextLevel
-              experienceForCurrentLevel
-              seasonId
-            }
-          }
-        }
-      """)
-
-        params = {"username": username, "seasonId": seasonId}
+        params = {"userId": userId, "username": username, "seasonId": seasonId}
 
         try:
             result = await session.execute(query, variable_values=params)
@@ -774,13 +704,13 @@ async def getProfile(username: str, seasonId: int) -> Dict:
                     raise
         except:
             raise
-
-        return result
+        else:
+            return result
 
 
 async def updatePlayerInfos(pool: asyncpg.Pool, playerInfos: asyncpg.Record) -> None:
     """
-      Update player infos in the Database.
+      Update player infos in the Database. (BDD)
 
       Parameters
       ----------
@@ -848,7 +778,7 @@ async def updatePlayerInfos(pool: asyncpg.Pool, playerInfos: asyncpg.Record) -> 
 
 async def getLastGame(userId: int, seasonId: int, gameId: int = 1) -> Dict:
     """
-      Récupérer les données de la dernière partie d'un joueur.
+      Récupérer les données de la dernière partie d'un joueur. (API EVA)
 
       Paramètres
       ----------
@@ -932,58 +862,9 @@ async def getLastGame(userId: int, seasonId: int, gameId: int = 1) -> Dict:
             return result["gameHistories"]["nodes"][gameId - 1]
 
 
-async def getmyBattlepass() -> Dict:
-    """
-      Récupérer les informations privées du BattlePass d'un joueur.
-
-      ``Non Fonctionnel`` actuellement.
-    """
-    return
-
-    async with Client(
-        transport=getTransport(),
-        fetch_schema_from_transport=False,
-    ) as session:
-
-        # Execute single query
-        query = gql("""     
-        query {
-          myBattlepass {
-            id
-            active
-            amount
-            expirationDate
-            commitmentDate
-            memberFrom
-            renew
-            status
-            withCommitment
-            nextPaymentAttempt
-            monthsLate
-            amountLeftToPay
-            paymentMethodId
-            locationId
-            details {
-              futureSessionSlotIds
-              sessionLeftCount
-            }
-            payments {
-              id
-              amount
-              status
-              creationDatetime
-            }
-          }
-        }
-    """)
-
-        result = await session.execute(query)
-        return result
-
-
 async def getSeasonsList() -> typing.List:
     """
-      Récupérer la liste des saisons.
+      Récupérer la liste des saisons. (API EVA)
 
       N'est pas censée être appelée manuellement.
     """
@@ -1014,71 +895,9 @@ async def getSeasonsList() -> typing.List:
         return result["listSeasons"]["nodes"]
 
 
-async def getMe() -> Dict:
-    """
-      Récupérer les informations privées d'un joueur.
-
-      ``Non fonctionnel`` actuellement.
-    """
-    return
-
-    async with Client(
-        transport=getTransport(),
-        fetch_schema_from_transport=False,
-    ) as session:
-
-        query = gql("""   
-        query {
-          me {
-            ... {
-              id
-              username
-              displayName
-              email
-              role
-              gender
-              phone
-              birthdate
-              firstName
-              lastName
-              fullName
-              address {
-                line1
-                postalCode
-                city
-                country
-              }
-              newsletter
-              isPublic
-            }
-            player {
-              userId
-              username
-              displayName
-              seasonPass {
-                active
-              }
-              experience(gameId: 1) {
-                experience
-                experienceForCurrentLevel
-                experienceForNextLevel
-                level
-                levelProgressionPercentage
-              }
-            }
-            usernameToken
-          }
-        }
-      """)
-
-        result = await session.execute(query)
-
-        return result
-
-
 async def getCitiesGQL() -> Dict:
     """
-      Retourne toutes les villes où une salle Eva est présente.  
+      Retourne toutes les villes où une salle Eva est présente. (API EVA)
     """
     async with Client(
         transport=getTransport(),
@@ -1095,7 +914,7 @@ async def getCitiesGQL() -> Dict:
             search: $search
             country: $country
             sortOrder: $sortOrder
-            includesComingSoon: true
+            includesComingSoon: false
           ) {
             nodes {
               ... {
@@ -1109,8 +928,12 @@ async def getCitiesGQL() -> Dict:
                   fullAddress
                   isExternal
                   sessionDuration
-                  sessionPrice
-                  sessionPriceESport
+                  sessionPriceConfiguration {
+                    peakHourSessionPrice
+                    offPeakHourSessionPrice
+                    offPeakHourSessionESportPrice
+                    peakHourSessionESportPrice
+                  }
                   currency
                   country
                   telephone
@@ -1134,6 +957,10 @@ async def getCitiesGQL() -> Dict:
                     name
                     areaM2
                     maxPlayer
+                    isClosed
+                    games {
+                      gameId
+                    }
                   }
                 }
               }
@@ -1155,12 +982,13 @@ async def getCitiesGQL() -> Dict:
         return result
 
 
-async def getCalendar(self, date: datetime.datetime, city_name: str = None, city_id: int = None, location: Dict = None) -> Dict:
+async def getCalendar(bot: classes.EvaBot, date: datetime.datetime, city_name: str = None, city_id: int = None) -> Dict:
     """
-      Retourne le calendrier d'une salle Eva. 
+      Retourne le calendrier d'une salle Eva. (API EVA)
     """
-    location = getCityfromDict(cities=getCities(
-        self), city_name=city_name, city_id=city_id) if not location else location
+    if not city_id:
+        city = getCityfromDict(cities=getCities(bot), city_name=city_name)
+        city_id = city["id"]
 
     async with Client(
         transport=getTransport(),
@@ -1168,51 +996,64 @@ async def getCalendar(self, date: datetime.datetime, city_name: str = None, city
     ) as session:
 
         query = gql("""
-      query($locationId: Int!, $currentDate: Date, $gameId: Int) {
-        calendar(locationId: $locationId, currentDate: $currentDate) {
-          firstDate
-          currentDate
-          lastDate
-          location {
-            id
-            name
-          }
-          closingDays {
-            date
-            reason
-          }
-          sessionList(gameId: $gameId) {
-            battlepassPercentage
-            battlepassOpenSessionCount
-            list {
-              isPeakHour
-              hasBattlepassAvailabilities
-              slot {
-                id
-                date
-                datetime
-                startTime
-                endTime
-                duration
-                locationId
-              }
+        query($locationId: Int!, $currentDate: Date, $gameId: Int) {
+          calendar(locationId: $locationId, currentDate: $currentDate) {
+            firstDate
+            currentDate
+            lastDate
+            location {
+              id
+              name
+            }
+            closingDays {
+              date
+              reason
+            }
+            sessionList(gameId: $gameId) {
+              battlepassPercentage
+              battlepassOpenSessionCount
+              list {
+                isPeakHour
+                hasBattlepassAvailabilities
+                slot {
+                  id
+                  date
+                  datetime
+                  startTime
+                  endTime
+                  duration
+                  locationId
+                }
 
-              availabilities {
-                total
-                totalESport
-                available
-                availableESport
-                gameId
-                hasBattlepassPlayer
-                isBattlepass
-                isESport
-                isEmpty
-                hasESportMode
-                taken
-                terrainId
-                priority
-                level
-                session {
+                availabilities {
+                  total
+                  totalESport
+                  available
+                  availableESport
+                  gameId
+                  hasBattlepassPlayer
+                  isESport
+                  isEmpty
+                  taken
+                  terrainId
+                  priority
+                  level
+                  session {
+                    terrainId
+                    slot {
+                      id
+                      date
+                      datetime
+                      startTime
+                      endTime
+                      duration
+                      locationId
+                    }
+                  }
+                }
+
+                levelList
+                sessionList {
                   terrainId
                   slot {
                     id
@@ -1225,39 +1066,32 @@ async def getCalendar(self, date: datetime.datetime, city_name: str = None, city
                   }
                 }
               }
-
-              levelList
-              sessionList {
-                terrainId
-                slot {
-                  id
-                  date
-                  datetime
-                  startTime
-                  endTime
-                  duration
-                  locationId
-                }
-              }
             }
           }
         }
-      }
       """)
 
-        params = {
-            "locationId": location['id'],
-            "currentDate": date.strftime('%Y-%m-%d')
-        }
+        for _ in range(7):
+            params = {
+                "locationId": city_id,
+                "currentDate": date.strftime('%Y-%m-%d'),
+                "gameId": None
+            }
 
-        result = await session.execute(query, variable_values=params)
+            result = await session.execute(query, variable_values=params)
 
+            for closingDay in result["calendar"]["closingDays"]:
+                if result["calendar"]["currentDate"] == closingDay["date"]:
+                    date += datetime.timedelta(days=1)
+                    break
+                else:
+                    return result
         return result
 
 
 async def getSession(slot_id: str, terrain_id: int) -> Dict:
     """
-      Retourne le contenu d'une session et les joueurs qui ont réservé.
+      Retourne le contenu d'une session et les joueurs qui ont réservé. (API EVA)
     """
     async with Client(
         transport=getTransport(),
@@ -1317,9 +1151,10 @@ async def getSession(slot_id: str, terrain_id: int) -> Dict:
 
         return result
 
+
 async def getLocation(city_id: int) -> Dict:
     """
-      Retourne le contenu d'une session et les joueurs qui ont réservé.
+      Retourne la ville. (API EVA)
     """
     async with Client(
         transport=getTransport(),
@@ -1370,6 +1205,9 @@ async def getLocation(city_id: int) -> Dict:
                   areaM2
                   maxPlayer
                   isClosed
+                  games {
+                    gameId
+                  }
                 }
               }
             }

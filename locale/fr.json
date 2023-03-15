@@ -1,9 +1,7 @@
 {
-    "IS_BOT":"{playerMention} est un bot discord ! Vous ne pouvez donc pas obtenir ses informations sur son profil Eva car inexistant.",
-
+    "IS_BOT": "{playerMention} est un bot discord ! Vous ne pouvez donc pas obtenir ses informations sur son profil Eva car inexistant.",
     "HELP_NAME": "help",
     "HELP_DESCRIPTION": "Afficher le menu d'aide pour les commandes d'Eva Bot.",
-
     "STATS_NAME": "stats",
     "STATS_DESCRIPTION": "Afficher les stats publiques d'un Joueur Eva.",
     "STATS_PLAYER_NAME": "joueur",
@@ -12,7 +10,6 @@
     "STATS_SEASON_DESCRIPTION": "Quelle Saison souhaitez-vous afficher ?",
     "STATS_PRIVATE_NAME": "privé",
     "STATS_PRIVATE_DESCRIPTION": "Voulez-vous être la seule personne à voir les stats ?",
-
     "LAST_GAME_NAME": "lastgame",
     "LAST_GAME_DESCRIPTION": "Afficher jusqu'à la 20ème partie souhaitée de la plus récente à la plus ancienne.",
     "LAST_GAME_PLAYER_NAME": "joueur",
@@ -21,17 +18,14 @@
     "LAST_GAME_POSITION_DESCRIPTION": "Quelle partie souhaitez-vous afficher ? (1 -> 20)",
     "LAST_GAME_PRIVATE_NAME": "privé",
     "LAST_GAME_PRIVATE_DESCRIPTION": "Voulez-vous être la seule personne à voir la partie ?",
-
     "LINK_NAME": "link",
     "LINK_DESCRIPTION": "__**⚠️ Important ⚠️**__ Associer son compte Eva à son compte Discord/Twitch.",
     "LINK_USERNAME_NAME": "pseudo_eva",
     "LINK_USERNAME_DESCRIPTION": "Votre pseudo Eva du type joueur#12345 récupérable sur le site \"eva.gg\".",
     "LINK_TWITCH_USERNAME_NAME": "pseudo_twitch",
     "LINK_TWITCH_USERNAME_DESCRIPTION": "Votre pseudo Twitch récupérable sur le site \"twitch.tv\".",
-
     "ROLE_NAME": "roles",
     "ROLE_DESCRIPTION": "Créer une liste de rôles que n'importe qui peut s'ajouter facilement.",
-
     "ROLE_CREATE_NAME": "créer-message",
     "ROLE_CREATE_DESCRIPTION": "Créez un message dynamique d'affectation de rôles.",
     "ROLE_CREATE_CHANNEL_NAME": "salon",
@@ -46,7 +40,6 @@
     "ROLE_CREATE_SET_USERNAME_DESCRIPTION": "Si le rôle est ajouté à la fin du pseudo de l'utilisateur.",
     "ROLE_CREATE_PLACEHOLDER_NAME": "indication",
     "ROLE_CREATE_PLACEHOLDER_DESCRIPTION": "Le message pour guider l'utilisateur quant au choix des rôles.",
-
     "ROLE_EDIT_NAME": "edit_message",
     "ROLE_EDIT_DESCRIPTION": "Éditer l'encadré du message d'affectation des rôles.",
     "ROLE_EDIT_MESSAGE_ID_NAME": "id-du-message",
@@ -55,7 +48,6 @@
     "ROLE_EDIT_TITLE_DESCRIPTION": "Le nouveau titre de l'encadré du message.",
     "ROLE_EDIT_DESC_NAME": "description",
     "ROLE_EDIT_DESC_DESCRIPTION": "La nouvelle description de l'encadré du message.",
-
     "ROLE_ADD_NAME": "add_role",
     "ROLE_ADD_DESCRIPTION": "Ajouter un rôle à un message d'affectation des rôles. Jusqu'à 25 rôles max par message.",
     "ROLE_ADD_CHANNEL_NAME": "salon",
@@ -68,7 +60,6 @@
     "ROLE_ADD_DESC_DESCRIPTION": "Description du rôle.",
     "ROLE_ADD_EMOJI_NAME": "émoji",
     "ROLE_ADD_EMOJI_DESCRIPTION": "L'émoji associé au rôle.",
-
     "ROLE_DELETE_NAME": "del_role",
     "ROLE_DELETE_DESCRIPTION": "Supprimer un rôle d'un message d'affectation des rôles.",
     "ROLE_DELETE_CHANNEL_NAME": "salon",
@@ -77,7 +68,6 @@
     "ROLE_DELETE_MESSAGE_ID_DESCRIPTION": "ID du message. Activer le mode développeur pour accéder à l'ID du message.",
     "ROLE_DELETE_ROLE_NAME": "rôle",
     "ROLE_DELETE_ROLE_DESCRIPTION": "Le rôle à supprimer du message.",
-
     "RESA_NAME": "resa",
     "RESA_DESCRIPTION": "Créez un fil dédié à votre réservation !",
     "RESA_ROLE_NAME": "rôle",
@@ -100,32 +90,23 @@
     "RESA_ESPORT_DESCRIPTION": "Session Esport",
     "RESA_CITY_NAME": "ville",
     "RESA_CITY_DESCRIPTION": "La ville où se déroulera la session.",
-
     "CONFIG_NAME": "config",
     "CONFIG_DESCRIPTION": "Configuration du bot.",
-
     "CONFIG_LOGS_NAME": "logs",
     "CONFIG_LOGS_DESCRIPTION": "Configurez le salon où seront accueillis tous les logs !",
     "CONFIG_LOGS_CHANNEL_NAME": "salon",
     "CONFIG_LOGS_CHANNEL_DESCRIPTION": "Le salon où seront envoyés les logs d'Eva Bot.",
-
     "CONFIG_RESA_NAME": "resa",
     "CONFIG_RESA_DESCRIPTION": "Configurez le salon où seront créés tous les fils de réservations !",
     "CONFIG_RESA_CHANNEL_NAME": "salon",
     "CONFIG_RESA_CHANNEL_DESCRIPTION": "Le salon qui regroupera tous les fils de réservations.",
-
-
     "BOOL_YES": "Oui",
     "BOOL_NO": "Non",
-
-
     "NOT_LINKED_EMBED_TITLE": ":x: {displayName} n'a pas de compte Eva associé à son compte Discord.",
     "NOT_LINKED_EMBED_DESCRIPTION": "L'utilisateur {playerMention} n'a pas de compte Eva relié à Discord.\nIl doit taper la commande `/{commandName}` en message privé à {clientMention} pour associer son compte.\nUn message privé lui a été envoyé pour qu'il associe son compte.",
     "NOT_LINKED_PLAYER_EMBED_TITLE": "Association de votre compte Eva à votre compte Discord",
     "NOT_LINKED_PLAYER_EMBED_DESCRIPTION": "{playerMention} vous invite à associer votre compte Eva à votre compte Discord, pour que tout le monde puisse voir l'historique de vos parties ainsi que vos statistiques **publiques** uniquement !\nPour cela rien de plus simple: Tapez ci-dessous la commande `/{commandName}` pour associer votre compte!",
-
     "HELP_RESPONSE_DESCRIPTION": "Pour pouvoir utiliser toutes les commandes vous devez dans un premier temps taper la commande `/link` pour associer votre compte Eva à votre compte Discord.\nCela permettra à quiconque du serveur de voir vos statistiques publiques !",
-    
     "STATS_EMBED_GAMES": "Parties",
     "STATS_EMBED_VICTORIES": "Victoires",
     "STATS_EMBED_DEFEATS": "Défaites",
@@ -144,7 +125,6 @@
     "STATS_EMBED_SEASON_PASS_DEACTIVE": "{username} (Pass de Combat __*DÉSACTIVÉ*__)",
     "STATS_EMBED_TOTAL_GAME_TIME_VALUE": "{gameTime} heures",
     "STATS_EMBED_TOTAL_DISTANCE_TRAVELLED_VALUE": "{traveledDistance} mètres",
-
     "LINK_EMBED_TITLE_1": ":point_right: __**Récupérer mon pseudo complet Eva**__ :point_left:",
     "LINK_EMBED_TITLE_2": ":x: Vous avez mal entré votre pseudo complet",
     "LINK_EMBED_TITLE_3": "État association Eva/Discord",
@@ -155,12 +135,10 @@
     "LINK_EMBED_DESCRIPTION_5": ":white_check_mark: Les/L'association(s) a(ont) bien été établie(s).",
     "LINK_EMBED_DESCRIPTION_6": ":x: Un problème est survenu. Vérifiez que vous avez bien entré votre Pseudo Twitch",
     "LINK_EMBED_DESCRIPTION_7": ":x: Un problème est survenu. Vérifiez que vous avez bien entré votre Pseudo Complet Eva ainsi que votre Pseudo Twitch",
-
     "ROLE_CREATE_NO_PERMS": "Je n'ai pas les permissions pour envoyer des messages dans {channelMention} !",
     "ROLE_CREATE_NOT_IN_SERVER": "Ce salon ne se situe pas dans ce serveur !",
     "ROLE_CREATE_OPTION_DESCRIPTION": "Ce choix sera automatiquement supprimé.",
     "ROLE_CREATE_OPTION_LABEL": "Vide",
     "ROLE_CREATE_OPTION_PLACEHOLDER": "Choisissez vos rôles !",
     "ROLE_CREATE_RESPONSE": "Message d'affectation de rôles créé :point_right: {jumpUrl}\nTapez la commande `/{commandName} {subCommandName1}` pour ajouter la liste des rôles au message.\nTapez la commande `/{commandName} {subCommandName2}` pour éditer l'encadré du message."
-
 }
