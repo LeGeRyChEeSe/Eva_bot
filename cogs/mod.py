@@ -1,11 +1,13 @@
 import disnake
 from disnake.ext import commands
-from disnake.ui import  Select, ActionRow, Button
+from disnake.ui import Select, ActionRow, Button
 from utils.constants import *
 import utils.functions as functions
+import utils.classes as classes
+
 
 class Mod(commands.Cog):
-    def __init__(self, bot: commands.InteractionBot) -> None:
+    def __init__(self, bot: classes.EvaBot) -> None:
         self.bot = bot
 
     @commands.slash_command(name="roles")
@@ -51,11 +53,15 @@ class Mod(commands.Cog):
         else:
             custom_id = "multiple_roles"
 
-        options = [disnake.SelectOption(label=functions.getLocalization(self.bot, "ROLE_CREATE_OPTION_LABEL", inter.guild_locale), value=0, description=functions.getLocalization(self.bot, "ROLE_CREATE_OPTION_DESCRIPTION", inter.guild_locale), emoji="🚮", default=True)]
-        select = Select(custom_id=custom_id, placeholder=placeholder or functions.getLocalization(self.bot, "ROLE_CREATE_OPTION_PLACEHOLDER", inter.guild_locale), options=options)
-        button = Button(style=disnake.ButtonStyle.secondary, emoji="❌", custom_id="remove_role")
+        options = [disnake.SelectOption(label=functions.getLocalization(self.bot, "ROLE_CREATE_OPTION_LABEL", inter.guild_locale), value=0,
+                                        description=functions.getLocalization(self.bot, "ROLE_CREATE_OPTION_DESCRIPTION", inter.guild_locale), emoji="🚮", default=True)]
+        select = Select(custom_id=custom_id, placeholder=placeholder or functions.getLocalization(
+            self.bot, "ROLE_CREATE_OPTION_PLACEHOLDER", inter.guild_locale), options=options)
+        button = Button(style=disnake.ButtonStyle.secondary,
+                        emoji="❌", custom_id="remove_role")
 
-        embed = disnake.Embed(title=titre, description=description, color=EVA_COLOR)
+        embed = disnake.Embed(
+            title=titre, description=description, color=EVA_COLOR)
         embed.set_thumbnail(url=inter.guild.icon.url)
         embed.set_footer(text=inter.guild.name)
 
@@ -63,7 +69,7 @@ class Mod(commands.Cog):
         await inter.response.send_message(functions.getLocalization(self.bot, "ROLE_CREATE_RESPONSE", inter.locale, jumpUrl=target.jump_url, commandName=functions.getLocalization(self.bot, "ROLE_NAME", inter.locale), subCommandName1=functions.getLocalization(self.bot, "ROLE_ADD_NAME", inter.locale), subCommandName2=functions.getLocalization(self.bot, "ROLE_EDIT_NAME", inter.locale)), ephemeral=True)
 
     @roles.sub_command("edit")
-    async def edit(self, inter: disnake.ApplicationCommandInteraction, channel:disnake.TextChannel, message_id : str, titre: str = None, description: str = None):
+    async def edit(self, inter: disnake.ApplicationCommandInteraction, channel: disnake.TextChannel, message_id: str, titre: str = None, description: str = None):
         """
             Éditer l'encadré du message d'affectation des rôles. {{ROLE_EDIT}}
 
@@ -78,7 +84,7 @@ class Mod(commands.Cog):
         """
         await inter.response.defer(with_message=True, ephemeral=True)
         message_id = int(message_id)
-        
+
         if not channel in inter.guild.channels:
             await inter.followup.send("Ce salon ne se situe pas dans ce serveur !")
             return
@@ -98,12 +104,12 @@ class Mod(commands.Cog):
             embed.title = titre
         if description:
             embed.description = description
-        
+
         await message.edit(embed=embed,)
         await inter.followup.send(f"Le message a bien été modifié :point_right: {message.jump_url}", ephemeral=True)
 
     @roles.sub_command("add")
-    async def add(self, inter: disnake.ApplicationCommandInteraction, channel:disnake.TextChannel, message_id: str, role: disnake.Role, description: str = None, emoji: str = None):
+    async def add(self, inter: disnake.ApplicationCommandInteraction, channel: disnake.TextChannel, message_id: str, role: disnake.Role, description: str = None, emoji: str = None):
         """
             Ajouter un rôle à un message d'affectation des rôles. 25 rôles max par message. {{ROLE_ADD}}
 
@@ -136,7 +142,7 @@ class Mod(commands.Cog):
         if inter.author.guild_permissions < role.permissions:
             await inter.followup.send("Vous n'avez pas les permissions pour ajouter ce rôle !")
             return
-        
+
         if message.author != inter.guild.me:
             await inter.followup.send("Je ne peux pas modifier ce message !")
             return
@@ -144,8 +150,9 @@ class Mod(commands.Cog):
         if message.components:
             rows = ActionRow.rows_from_message(message)
             buttonRow = ActionRow()
-            buttonRow.append_item(Button(style=disnake.ButtonStyle.secondary, emoji="❌", custom_id="remove_role"))
-            
+            buttonRow.append_item(
+                Button(style=disnake.ButtonStyle.secondary, emoji="❌", custom_id="remove_role"))
+
             for row, component in ActionRow.walk_components(rows):
                 if component.type != disnake.ComponentType.select:
                     continue
@@ -153,21 +160,24 @@ class Mod(commands.Cog):
                 if component.options[0].value == "0":
                     component.options.remove(component.options[0])
                 try:
-                    component.append_option(disnake.SelectOption(label=role.name, value=role.id, description=description, emoji=emoji))
+                    component.append_option(disnake.SelectOption(
+                        label=role.name, value=role.id, description=description, emoji=emoji))
                 except ValueError:
                     await inter.followup.send("Le nombre max a été atteint !")
                     return
+                except:
+                    raise
                 else:
                     if component.custom_id == "multiple_roles":
                         component.max_values += len(component.options) - 1
 
-            #rows.append(buttonRow)
+            # rows.append(buttonRow)
             await message.edit(components=rows)
 
             await inter.followup.send(f"Le rôle {role.mention} a bien été ajouté au message d'affectation des rôles :point_right: {message.jump_url}")
 
     @roles.sub_command("delete")
-    async def delete(self, inter: disnake.ApplicationCommandInteraction, channel:disnake.TextChannel, message_id: str, role: disnake.Role):
+    async def delete(self, inter: disnake.ApplicationCommandInteraction, channel: disnake.TextChannel, message_id: str, role: disnake.Role):
         """
             Supprimer un rôle d'un message d'affectation des rôles. {{ROLE_DELETE}}
 
@@ -196,7 +206,7 @@ class Mod(commands.Cog):
         if inter.author.guild_permissions < role.permissions:
             await inter.followup.send("Vous n'avez pas les permissions pour ajouter ce rôle !")
             return
-        
+
         if message.author != inter.guild.me:
             await inter.followup.send("Je ne peux pas modifier ce message !")
             return
@@ -219,7 +229,8 @@ class Mod(commands.Cog):
                             component.max_values -= 1
                         deleted = True
                 if len(component.options) == 0:
-                    component.append_option(disnake.SelectOption(label=functions.getLocalization(self.bot, "ROLE_CREATE_OPTION_LABEL", inter.guild_locale), value=0, description=functions.getLocalization(self.bot, "ROLE_CREATE_OPTION_DESCRIPTION", inter.guild_locale), emoji="🚮", default=True))
+                    component.append_option(disnake.SelectOption(label=functions.getLocalization(self.bot, "ROLE_CREATE_OPTION_LABEL", inter.guild_locale),
+                                            value=0, description=functions.getLocalization(self.bot, "ROLE_CREATE_OPTION_DESCRIPTION", inter.guild_locale), emoji="🚮", default=True))
                     component.max_values = 1
             if deleted:
                 await message.edit(components=rows)
@@ -227,5 +238,33 @@ class Mod(commands.Cog):
             else:
                 await inter.followup.send(f"Le rôle {role.mention} n'est pas présent dans la liste d'affectation des rôles de ce message :point_right: {message.jump_url}\nPar conséquent je n'ai pas pu le supprimer !")
 
-def setup(bot: commands.InteractionBot):
+    @commands.slash_command(name="sondage")
+    @commands.default_member_permissions(manage_messages=True)
+    async def sondage(self, inter: disnake.ApplicationCommandInteraction, question: str):
+        """
+            Créer un sondage avec plusieurs réponses possibles.
+
+            Parameters
+            ----------
+            question: :class:`str`
+                La question du sondage
+        """
+        await inter.response.defer(with_message=False)
+
+        embed = disnake.Embed(
+            title=question, color=disnake.Color.from_rgb(*PERFECT_GREY))
+        embed.set_author(
+            name=f"Sondage de {inter.author.display_name}", icon_url=inter.author.display_avatar)
+
+        buttons = []
+        buttons.append(Button(style=disnake.ButtonStyle.secondary,
+                       label="Ajouter des réponses", custom_id=f"{inter.author.id}_sondage_button"))
+        buttons.append(Button(style=disnake.ButtonStyle.danger, label="J'ai ajouté toutes les réponses que je voulais",
+                       custom_id=f"{inter.author.id}_sondage_clear_button"))
+
+        await inter.delete_original_response()
+        await inter.channel.send(embed=embed, components=buttons)
+
+
+def setup(bot: classes.EvaBot):
     bot.add_cog(Mod(bot))
