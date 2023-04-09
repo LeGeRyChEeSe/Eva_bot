@@ -51,19 +51,25 @@ class Eva(commands.Cog):
                     "L'utilisateur n'a pas associé son compte EVA.")
 
             if saison == "Total":
+                player_profiles = []
+
                 for season in self.bot.seasons_list:
                     season = season["seasonNumber"]
-                    player_profile = await functions.getStats(userId=userId, seasonId=season)
-                    for name, data in player_profile['player']["experience"].items():
+                    player_profiles.append(await functions.getStats(userId=userId, seasonId=season))
+                
+                player_profile = player_profiles[0]
+                    
+                for p in player_profiles[1:]:
+                    for name, data in p['player']["experience"].items():
                         for n, d in player_profile['player']["experience"].items():
                             if name == n:
                                 if name == "levelProgressionPercentage":
                                     player_profile['player']["experience"][n] = (
-                                        player_profile['player']["experience"]["experience"] * 100) / player_profile['player']["experience"]["experienceForNextLevel"]
+                                        player_profile['player']["experience"]["experience"] * 100) / p['player']["experience"]["experienceForNextLevel"]
                                 else:
                                     player_profile['player']["experience"][n] = d + data
 
-                    for name, data in player_profile['player']['statistics']['data'].items():
+                    for name, data in p['player']['statistics']['data'].items():
                         for n, d in player_profile['player']['statistics']['data'].items():
                             if name == n:
                                 if name == "bestKillStreak":
@@ -71,8 +77,7 @@ class Eva(commands.Cog):
                                         d, data)
                                 else:
                                     player_profile['player']['statistics']['data'][n] = d + data
-                    player_profile['player']['statistics']['data']["killsByDeaths"] = player_profile[
-                        "player"]["statistics"]["data"]["killsByDeaths"] / len(self.bot.seasons_list)
+                player_profile['player']['statistics']['data']["killsByDeaths"] = player_profile['player']['statistics']['data']["killsByDeaths"] / len(self.bot.seasons_list)
 
             else:
                 saison = int(saison)

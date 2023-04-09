@@ -133,7 +133,7 @@ class Tasks(commands.Cog):
             embed2.description = "Nombre de parties jouées\nTemps de jeu\nNombre de victoires\nNombre de défaites\nNombre de parties\nDégats infligés\nTués (K)\nMorts (D)\nAssistances (A)\nRatio Tués/Morts (K/D)\nDistance parcourue\nDistance moyenne parcourue\nMeilleur série d'éliminations\nNiveau"
             embed2.add_field("Comment lire votre score",
                              "Moins vous avez de points et plus vous êtes en tête dans le classement")
-            embed3.description = f"Tapez la commande `/{functions.getLocalization(self.bot, 'LINK_NAME', guild.preferred_locale)}` en message privé à {guild.me.mention} pour associer votre compte Eva à votre compte Discord !\nUne fois l'association terminée patientez le temps indiqué plus haut pour voir votre position dans le classement !\nCliquez sur `Mon classement` si vous ne vous trouvez pas pour afficher votre position !"
+            embed3.description = f"Cliquez sur le bouton 🪢 **Associer compte EVA** pour associer votre compte Eva à votre compte Discord !\nUne fois l'association terminée patientez le temps indiqué plus haut pour voir votre position dans le classement !\nCliquez sur `Mon classement` si vous ne vous trouvez pas pour afficher votre position !"
             embed4.description = f"Vérifiez bien sur le site [EVA.GG](https://www.eva.gg) que la case __**Profil public**__ est cochée pour que {guild.me.mention} puisse récupérer les infos de votre profil !"
 
             select_options = []
@@ -272,7 +272,7 @@ class Tasks(commands.Cog):
                             if extend_deadline < actual_time:
                                 await message.delete()
                             elif actual_time.timestamp() - deadline.timestamp() <= 60 and actual_time.timestamp() - deadline.timestamp() > 0:
-                                embed = disnake.Embed(title=f"La session de {deadline.time().strftime('%H:%M')} vient de commencer ! Vous ne pouvez plus vous y inscrire.",
+                                embed = disnake.Embed(title=f"La session de {format_dt(deadline, style='t')} vient de commencer ! Vous ne pouvez plus vous y inscrire.",
                                                       description=f"La réservation s'autodétruira à la fin de la session {format_dt(extend_deadline, style='R')}.", color=EVA_COLOR, timestamp=functions.getTimeStamp())
 
                                 rows = ActionRow.rows_from_message(message)
@@ -329,7 +329,7 @@ class Tasks(commands.Cog):
 
                             if alert_deadline < actual_time and actual_time < deadline and actual_time.timestamp() - alert_deadline.timestamp() <= 60:
                                 embed = disnake.Embed(
-                                    title=f"La session commence {format_dt(deadline, style='R')} !", color=EVA_COLOR, timestamp=functions.getTimeStamp())
+                                    title=f"La session de {format_dt(deadline, style='t')} commence {format_dt(deadline, style='R')} !", color=EVA_COLOR, timestamp=functions.getTimeStamp())
                                 original_embed = message.embeds[0]
 
                                 await message.edit(embed=original_embed)
@@ -399,6 +399,8 @@ class Tasks(commands.Cog):
             cities = functions.getCities(self.bot)
             city = functions.getCityfromDict(
                 cities, city_id=location_id[0]["city_id"])
+            if not city:
+                continue
             location = await functions.getLocation(city["id"])
             location = location["location"]
             threads: typing.List[disnake.Thread] = []
@@ -506,7 +508,7 @@ class Tasks(commands.Cog):
                             terrain_id = terrain["terrainId"]
                             terrain_name = [
                                 i["name"] for i in location["details"]["terrains"] if i["id"] == terrain_id]
-                            if True in (start_time in message.embeds[0].title for message in messages if message.author == self.bot.user) and terrain_name[0] in (message.embeds[0].fields[1].value for message in messages if message.author == self.bot.user):
+                            if True in (start_time in message.embeds[0].title if message.embeds else False for message in messages if message.author == self.bot.user) and terrain_name[0] in (message.embeds[0].fields[1].value if message.embeds and message.embeds[0].fields else None for message in messages if message.author == self.bot.user):
                                 continue
 
                             date = datetime.datetime.fromisoformat(
@@ -572,7 +574,7 @@ class Tasks(commands.Cog):
                     await message.edit(components=rows if not empty else None)
 
             if next_day:
-                threads.sort(key=lambda x: x.created_at)
+                threads.sort(key=lambda x: datetime.datetime.strptime(x.name, "%A %d %B %Y").timestamp(), reverse=True)
                 for thread in threads:
                     history = await thread.history(oldest_first=True).flatten()
                     first_message = history[0]
@@ -616,8 +618,9 @@ class Tasks(commands.Cog):
                                         else:
                                             players_list.append(None)
 
-                                members_list = [[await functions.getProfile(player["username"], current_season_number), await functions.getMember(self.bot, player["username"])] if player and player["username"] else [None, None] for player in players_list]
+                                members_list = [[await functions.getStats(player["username"], seasonId=current_season_number), await functions.getMember(self.bot, player["username"])] if player and player["username"] else [None, None] for player in players_list]
 
+                                print(members_list)
                                 resa_embed = disnake.Embed(
                                     title=f"Réservation à {day['slot']['startTime']}", color=PEAK_HOURS_COLOR if day["isPeakHour"] else OFF_PEAK_HOURS_COLOR)
                                 resa_embed.description = f"__**Liste des joueurs**__:\n" + '\n'.join([f"[{member[0]['player']['displayName']}](https://www.eva.gg/profile/public/{member[0]['player']['username']}) | {member[1].mention}" if member[1] else (f"[{member[0]['player']['displayName']}](https://www.eva.gg/profile/public/{member[0]['player']['username']})" if member[0] else "Anonyme") for member in members_list])
@@ -639,6 +642,79 @@ class Tasks(commands.Cog):
 
                                 await new_thread.send(embed=resa_embed, components=buttons)
                     await thread.delete()
+            
+            for tag in resa_channel.available_tags:
+                thread_exists = False
+                for thre in resa_channel.threads:
+                    if thre.name.startswith(tag.name.lower()):
+                        thread_exists = True
+                if not thread_exists:
+                    for d in days_with_dates_formated:
+                        if DAYS[d.weekday()].lower() == tag.name.lower():
+                            calendar = await functions.getCalendar(self.bot, d, city_name=city["name"])
+                            calendar = calendar["calendar"]
+
+                            forum_embed = disnake.Embed(
+                                title=f"Réservations du {d.strftime('%A %d %B %Y')}", color=disnake.Color.red())
+                            forum_embed.description = f"{peak_hours_emoji} Heures pleines\n{off_peak_hours_emoji} Heures creuses"
+                            forum_embed.set_image(file=disnake.File(
+                                "assets/Images/reservation.gif"))
+                            forum_buttons = []
+                            forum_buttons.append(Button(style=disnake.ButtonStyle.url, label="Réserver sur EVA.GG",
+                                        url=f"https://www.eva.gg/fr/calendrier?locationId={city['id']}&gameId=1&currentDate={d.strftime('%Y-%m-%d')}"))
+                            forum_buttons.append(Button(
+                                style=disnake.ButtonStyle.danger, label="Associer compte EVA", custom_id="link_button", emoji="🪢"))
+
+                            new_thread, _ = await resa_channel.create_thread(name=f"{d.strftime('%A %d %B %Y')}", applied_tags=[tag], embed=forum_embed, components=forum_buttons)
+
+                            for day in calendar["sessionList"]["list"]:
+                                slot_id = day["slot"]["id"]
+                                date = day['slot']['datetime']
+                                start_time = day['slot']['startTime']
+                                for terrain in day["availabilities"]:
+                                    if terrain["taken"] == 0:
+                                        continue
+                                    terrain_id = terrain["terrainId"]
+                                    terrain_name = [
+                                        i["name"] for i in location["details"]["terrains"] if i["id"] == terrain_id]
+
+                                    date = datetime.datetime.fromisoformat(
+                                        day["slot"]["datetime"])
+                                    session = await functions.getSession(slot_id, terrain_id)
+                                    session = session["getSession"]
+                                    players_list = []
+
+                                    for booking_list in session["bookingList"]:
+                                        player_count = booking_list["playerCount"]
+                                        for i in range(player_count):
+                                            if i < len(booking_list["playerList"]) and booking_list["playerList"][i]["username"]:
+                                                players_list.append(
+                                                    booking_list["playerList"][i])
+                                            else:
+                                                players_list.append(None)
+
+                                    members_list = [[await functions.getStats(player["username"], seasonId=current_season_number), await functions.getMember(self.bot, player["username"])] if player and player["username"] else [None, None] for player in players_list]
+
+                                    resa_embed = disnake.Embed(
+                                        title=f"Réservation à {day['slot']['startTime']}", color=PEAK_HOURS_COLOR if day["isPeakHour"] else OFF_PEAK_HOURS_COLOR)
+                                    resa_embed.description = f"__**Liste des joueurs**__:\n" + '\n'.join([f"[{member[0]['player']['displayName']}](https://www.eva.gg/profile/public/{member[0]['player']['username']}) | {member[1].mention}" if member[1] else (f"[{member[0]['player']['displayName']}](https://www.eva.gg/profile/public/{member[0]['player']['username']})" if member[0] else "Anonyme") for member in members_list])
+                                    resa_embed.add_field(
+                                        name="Ville", value=city["name"], inline=False)
+                                    resa_embed.add_field(
+                                        name="Terrain", value=terrain_name[0], inline=False)
+                                    resa_embed.add_field(
+                                        name="Horaire choisi", value=f"{format_dt(date)} | {format_dt(date, style='R')}", inline=False)
+                                    resa_embed.add_field(
+                                        name="Nombre de joueurs", value=f"{terrain['taken']}/{terrain['total']}", inline=False)
+
+                                    buttons = [
+                                        Button(style=disnake.ButtonStyle.url, label="Réserver (EVA.GG)",
+                                                url=f"https://www.eva.gg/fr/calendrier?locationId={city['id']}&gameId=1&currentDate={day['slot']['date']}"),
+                                        Button(
+                                            style=disnake.ButtonStyle.secondary, label="Rafraîchir", emoji="🔃", custom_id="refresh_reservation")
+                                    ]
+
+                                    await new_thread.send(embed=resa_embed, components=buttons)
 
     def cog_unload(self) -> None:
         self.set_variables.stop()

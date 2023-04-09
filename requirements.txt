@@ -20,8 +20,6 @@ html2image==2.0.1
 idna==3.3
 jmespath==1.0.1
 multidict==6.0.2
-numpy==1.24.2
-pandas==1.5.3
 Pillow==9.4.0
 pyasn1==0.4.8
 pycodestyle==2.10.0

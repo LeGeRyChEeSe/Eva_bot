@@ -4,5 +4,5 @@ services:
   evabot:
     image: evabot:latest
     command: python main.py
-    working_dir: /evabot
+    working_dir: /app
     env_file: .env

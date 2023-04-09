@@ -1,20 +1,22 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1                                                   
+FROM python:3.9.4
 
-FROM python:3.9-slim-buster
-
-WORKDIR /evabot
+WORKDIR /app
 
 COPY requirements.txt .
 
 RUN apt-get update && \
-    apt-get install -y locales git libjpeg-dev zlib1g-dev gcc && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        libjpeg-dev locales \
+        zlib1g-dev && \
     rm -rf /var/lib/apt/lists/* && \
+    pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
     sed -i -e 's/# fr_FR.UTF-8 UTF-8/fr_FR.UTF-8 UTF-8/' /etc/locale.gen && \
-    dpkg-reconfigure --frontend=noninteractive locales && \
-    pip install --upgrade pip && \
-    pip install -r requirements.txt && \
-    locale-gen fr_FR.UTF-8
-
+    locale-gen
+    
+ENV LC_ALL fr_FR.UTF-8
 ENV LANG fr_FR.UTF-8
 ENV LANGUAGE fr_FR:fr
 ENV LC_ALL fr_FR.UTF-8

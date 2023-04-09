@@ -258,6 +258,10 @@ class Listeners(commands.Cog):
             await inter.edit_original_response(embed=embed)
 
         elif custom_id == "other_ranking":
+            if not self.bot.guilds_ranking:
+                await inter.response.send_message("Le classement va être réinitialisé dans quelques secondes. (1 minute au maximum)\nCela arrive uniquement quand mon développeur vient de me redémarrer...\nMerci de patienter !",ephemeral=True)
+                return
+                
             await inter.response.defer(with_message=True, ephemeral=True)
             embed = disnake.Embed(
                 color=functions.perfectGrey(), timestamp=functions.getTimeStamp())
@@ -456,60 +460,11 @@ class Listeners(commands.Cog):
     async def on_button_click(self, inter: disnake.MessageInteraction):
         custom_id = inter.component.custom_id
 
-        def check_subscribed(players):
-            for p in players:
-                if str(inter.author.id) in p:
-                    return p
-            return False
-
-        def check_number_players(players: List[str], nb_max: int):
-            nb_max = nb_max
-
-            if len(players) > nb_max:
-                return False
-            else:
-                return True
-
-        if custom_id == "subscribe_reservation":
-            embed = inter.message.embeds[0]
-            players = embed.description.split("\n")
-            nb_max = int(embed.fields[-1].value)
-            response_embed = disnake.Embed(color=EVA_COLOR)
-            await inter.response.defer(with_message=True, ephemeral=True)
-
-            if not check_subscribed(players) and check_number_players(players, nb_max):
-                embed.description = f"{embed.description}\n{inter.author.mention}"
-                response_embed.title = ":white_check_mark: Inscription réussie"
-                await inter.message.edit(embed=embed)
-            elif not check_number_players(players, nb_max):
-                response_embed.title = ":x: Il n'y a plus de places pour cette session"
-            else:
-                response_embed.title = ":x: Vous êtes déjà inscrit"
-
-            await inter.followup.send(embed=response_embed)
-
-        elif custom_id == "unsubscribe_reservation":
-            embed = inter.message.embeds[0]
-            players = embed.description.split("\n")
-            await inter.response.defer(with_message=True, ephemeral=True)
-            response_embed = disnake.Embed(color=EVA_COLOR)
-            check = check_subscribed(players)
-
-            if check:
-                del players[players.index(check)]
-                if len(players) <= 1:
-                    response_embed.title = ":white_check_mark: Réservation supprimée car personne n'est inscrit à cette session"
-                    await inter.message.delete()
-                else:
-                    embed.description = "\n".join(players)
-                    response_embed.title = ":white_check_mark: Désinscription réussie"
-                    await inter.message.edit(embed=embed)
-            else:
-                response_embed.title = ":x: Vous n'êtes pas inscrit"
-
-            await inter.followup.send(embed=response_embed)
-
-        elif custom_id == "more_ranking":
+        if custom_id == "more_ranking":
+            if not self.bot.guilds_ranking:
+                await inter.response.send_message("Le classement va être réinitialisé dans quelques secondes. (1 minute au maximum)\nCela arrive uniquement quand mon développeur vient de me redémarrer...\nMerci de patienter !",ephemeral=True)
+                return
+            
             players = copy.deepcopy(self.bot.guilds_ranking[inter.guild_id])
             await inter.response.defer(with_message=True, ephemeral=True)
             city = inter.message.embeds[0].author.name.split(
@@ -581,6 +536,10 @@ class Listeners(commands.Cog):
             await inter.followup.send(embed=embed, components=[buttons, bottom_button], ephemeral=True)
 
         elif custom_id == "begin_ranking":
+            if not self.bot.guilds_ranking:
+                await inter.response.send_message("Le classement va être réinitialisé dans quelques secondes. (1 minute au maximum)\nCela arrive uniquement quand mon développeur vient de me redémarrer...\nMerci de patienter !",ephemeral=True)
+                return
+            
             city = inter.message.embeds[0].title.split(
                 "EVA")[1].split("(")[0].strip()
             components = []
@@ -716,6 +675,10 @@ class Listeners(commands.Cog):
             await inter.response.edit_message(embed=embed, components=components)
 
         elif custom_id == "previous_ranking":
+            if not self.bot.guilds_ranking:
+                await inter.response.send_message("Le classement va être réinitialisé dans quelques secondes. (1 minute au maximum)\nCela arrive uniquement quand mon développeur vient de me redémarrer...\nMerci de patienter !",ephemeral=True)
+                return
+            
             city = inter.message.embeds[0].title.split(
                 "EVA")[1].split("(")[0].strip()
             components = []
@@ -864,6 +827,10 @@ class Listeners(commands.Cog):
             await inter.response.edit_message(embed=embed, components=components)
 
         elif custom_id == "next_ranking":
+            if not self.bot.guilds_ranking:
+                await inter.response.send_message("Le classement va être réinitialisé dans quelques secondes. (1 minute au maximum)\nCela arrive uniquement quand mon développeur vient de me redémarrer...\nMerci de patienter !",ephemeral=True)
+                return
+            
             city = inter.message.embeds[0].title.split(
                 "EVA")[1].split("(")[0].strip()
             components = []
@@ -1011,6 +978,10 @@ class Listeners(commands.Cog):
             await inter.response.edit_message(embed=embed, components=components)
 
         elif custom_id == "final_ranking":
+            if not self.bot.guilds_ranking:
+                await inter.response.send_message("Le classement va être réinitialisé dans quelques secondes. (1 minute au maximum)\nCela arrive uniquement quand mon développeur vient de me redémarrer...\nMerci de patienter !",ephemeral=True)
+                return
+            
             city = inter.message.embeds[0].title.split(
                 "EVA")[1].split("(")[0].strip()
             components = []
@@ -1144,6 +1115,10 @@ class Listeners(commands.Cog):
             await inter.response.edit_message(embed=embed, components=components)
 
         elif custom_id == "my_rank_ranking":
+            if not self.bot.guilds_ranking:
+                await inter.response.send_message("Le classement va être réinitialisé dans quelques secondes. (1 minute au maximum)\nCela arrive uniquement quand mon développeur vient de me redémarrer...\nMerci de patienter !",ephemeral=True)
+                return
+            
             try:
                 city = inter.message.embeds[0].title.split(
                     "EVA")[1].split("(")[0].strip()
@@ -1298,6 +1273,10 @@ class Listeners(commands.Cog):
             await inter.followup.send(embed=embed)
 
         elif custom_id == "global_ranking":
+            if not self.bot.guilds_ranking:
+                await inter.response.send_message("Le classement va être réinitialisé dans quelques secondes. (1 minute au maximum)\nCela arrive uniquement quand mon développeur vient de me redémarrer...\nMerci de patienter !",ephemeral=True)
+                return
+            
             players: typing.List[typing.Dict[typing.Dict, typing.Dict]] = copy.deepcopy(
                 self.bot.guilds_ranking["all_players"])
             await inter.response.defer(with_message=True, ephemeral=True)
@@ -1433,7 +1412,7 @@ class Listeners(commands.Cog):
                                     players_list.append(None)
 
                         members_list = [[await functions.getStats(player["username"], seasonId=current_season_number), await functions.getMember(self.bot, player["username"])] if player and player["username"] else [None, None] for player in players_list]
-                        embed.description = f"__**Liste des joueurs**__:\n" + '\n'.join([f"[{member[1].mention}](https://www.eva.gg/profile/public/{member[0]['player']['username']})" if member[1] and isinstance(member[1], disnake.Member) and member[1].guild == inter.guild else (f"[{member[0]['player']['displayName']}](https://www.eva.gg/profile/public/{member[0]['player']['username']})" if member[0] else "Anonyme") for member in members_list])
+                        embed.description = f"__**Liste des joueurs**__:\n" + '\n'.join([f"[{member[0]['player']['displayName']}](https://www.eva.gg/profile/public/{member[0]['player']['username']}) | {member[1].mention}" if member[1] else (f"[{member[0]['player']['displayName']}](https://www.eva.gg/profile/public/{member[0]['player']['username']})" if member[0] else "Anonyme") for member in members_list])
                         embed.set_field_at(index=3, name="Nombre de joueurs",
                                            value=f"{terrain['taken']}/{terrain['total']}", inline=False)
                         embed.set_footer(text="Dernier rafraîchissement")
@@ -1481,6 +1460,8 @@ class Listeners(commands.Cog):
                     embed.description = "Une erreur est survenue, elle a bien été signalée."
             elif isinstance(original, AttributeError):
                 embed.description = "Une des valeurs nécessaires au fonctionnement du bot est nulle."
+            elif isinstance(original, UserIsPrivate):
+                await functions.send_error(inter, original.args[0])
         elif isinstance(error, commandsErrors.PrivateMessageOnly):
             return
         elif isinstance(error, commandsErrors.CheckFailure):

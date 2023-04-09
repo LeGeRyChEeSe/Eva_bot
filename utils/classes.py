@@ -1,8 +1,5 @@
-import aiohttp
-import asyncio
-import asyncpg
 import typing
-import disnake
+import asyncpg
 from disnake.ext import commands
 
 
