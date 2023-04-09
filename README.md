@@ -13,7 +13,7 @@
 
 <p align="center">
 This is the unofficial original Discord Bot of <a href="https://www.eva.gg/">EVA</a>.
-It's made for getting stats and previous games from a Player in one command easily. There is also more features like geting booking sessions, and a custom players ranking. Since this project is been published, feel free to give your help to this project if you want, there is many issues actually that I cannot fix yet ! Knowns issues are mentionned below.
+It's made for getting stats and previous games from a Player in one command easily. There is also more features like getting booking sessions, and a custom players ranking. Since this project has been published, feel free to give your help to this project if you want, there is many issues actually that I cannot fix yet ! Knowns issues are mentionned below.
 <p align="center">
 
 ## Table of Contents
@@ -44,7 +44,7 @@ It's made for getting stats and previous games from a Player in one command easi
 
 2. Copy and replace the values of these Environment Variables into the `.env` file
     ```python
-    TOKEN='EVA_API_TOKEN'
+    TOKEN='DISCORD_API_TOKEN'
     HOST_DB='HOST_DATABASE'
     USER_DB='USER_DATABASE'
     PASSWD_DB='PASSWORD_DATABASE'
