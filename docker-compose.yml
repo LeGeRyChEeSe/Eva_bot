@@ -2,6 +2,7 @@ version: '1.0'
 
 services:
   evabot:
+    build: .
     image: evabot:latest
     command: python main.py
     working_dir: /app

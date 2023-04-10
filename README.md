@@ -33,11 +33,6 @@ It's made for getting stats and previous games from a Player in one command easi
     git clone https://github.com/LeGeRyChEeSe/Eva_bot.git && cd Eva_bot && pip install -r requirements.txt
     ```
 
-- Or install with Docker
-    ```bash
-    docker pull ghcr.io/legerycheese/eva_bot:main
-    ```
-
 ## Running
 
 1. Create a `.env` file.
@@ -58,7 +53,7 @@ python main.py
 ### Docker
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
 ## Contributing
