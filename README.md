@@ -3,12 +3,12 @@
 <img src="https://github.com/LeGeRyChEeSe/Eva_bot/blob/main/assets/Images/Alpha-afterH.ab8f1852.png?raw=true" align="center" height=205 alt="evabot" />
 </p>
 <p align="center">
-<img src='https://visitor-badge.laobi.icu/badge?page_id=LeGeRyChEeSe.evabot'>
-<a href="https://github.com/LeGeRyChEeSe/evabot/stargazers">
-<img src="https://img.shields.io/github/stars/LeGeRyChEeSe/evabot" alt="Stars"/>
+<img src='https://visitor-badge.laobi.icu/badge?page_id=LeGeRyChEeSe.Eva_bot'>
+<a href="https://github.com/LeGeRyChEeSe/Eva_bot/stargazers">
+<img src="https://img.shields.io/github/stars/LeGeRyChEeSe/Eva_bot" alt="Stars"/>
 </a>
-<a href="https://github.com/LeGeRyChEeSe/evabot/issues">
-<img src="https://img.shields.io/github/issues/LeGeRyChEeSe/evabot" alt="Issues"/>
+<a href="https://github.com/LeGeRyChEeSe/Eva_bot/issues">
+<img src="https://img.shields.io/github/issues/LeGeRyChEeSe/Eva_bot" alt="Issues"/>
 </a>
 
 <p align="center">
